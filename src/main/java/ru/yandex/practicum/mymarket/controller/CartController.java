@@ -24,7 +24,7 @@ public class CartController {
         log.info("GET /cart/items");
 
         List<ItemDto> items = cartService.getCartItems();
-        Long total = cartService.getTotalPrice();
+        Long total = cartService.getTotalPrice(items);
 
         model.addAttribute("items", items);
         model.addAttribute("total", total);

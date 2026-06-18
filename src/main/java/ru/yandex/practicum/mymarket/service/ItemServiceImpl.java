@@ -13,6 +13,11 @@ import ru.yandex.practicum.mymarket.entity.Item;
 import ru.yandex.practicum.mymarket.exception.ItemNotFoundException;
 import ru.yandex.practicum.mymarket.repository.ItemRepository;
 
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -49,6 +54,13 @@ public class ItemServiceImpl implements ItemService {
     @Override
     public Item getItemEntityById(Long id) {
         return itemRepository.findById(id).orElseThrow(() -> new ItemNotFoundException("Item not found with id: " + id));
+    }
+
+    @Override
+    public Map<Long, Item> getItemEntitiesByIds(Set<Long> ids) {
+        if (ids == null || ids.isEmpty()) return Map.of();
+
+        return itemRepository.findAllByIdIn(ids).stream().collect(Collectors.toMap(Item::getId, Function.identity()));
     }
 
     private Pageable createPageable(int pageNumber, int pageSize, String sort) {

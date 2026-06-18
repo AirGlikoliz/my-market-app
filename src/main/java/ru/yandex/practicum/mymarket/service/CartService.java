@@ -19,5 +19,5 @@ public interface CartService {
 
     List<ItemDto> getCartItems();
 
-    Long getTotalPrice();
+    Long getTotalPrice(List<ItemDto> cartItems);
 }

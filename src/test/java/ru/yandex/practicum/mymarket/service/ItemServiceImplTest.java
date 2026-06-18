@@ -13,6 +13,8 @@ import ru.yandex.practicum.mymarket.exception.ItemNotFoundException;
 import ru.yandex.practicum.mymarket.repository.ItemRepository;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -245,4 +247,34 @@ class ItemServiceImplTest {
         assertNotNull(result);
         assertEquals(5, result.getContent().size());
     }
+
+    @Test
+    void getItemEntitiesByIds_ShouldReturnAllItems() {
+        // given
+        List<Item> allItems = itemRepository.findAll();
+        Set<Long> ids = Set.of(allItems.get(0).getId(), allItems.get(1).getId(), allItems.get(2).getId());
+
+        // when
+        Map<Long, Item> result = itemService.getItemEntitiesByIds(ids);
+
+        // then
+        assertNotNull(result);
+        assertEquals(3, result.size());
+
+        for (Long id : ids) {
+            assertTrue(result.containsKey(id));
+            assertNotNull(result.get(id));
+        }
+    }
+
+    @Test
+    void getItemEntitiesByIds_WithEmptySet_ShouldReturnEmptyMap() {
+        // when
+        Map<Long, Item> result = itemService.getItemEntitiesByIds(Set.of());
+
+        // then
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+    }
+
 }

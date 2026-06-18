@@ -11,6 +11,7 @@ import ru.yandex.practicum.mymarket.entity.Item;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -161,8 +162,7 @@ class CartServiceImplTest {
         cartService.increaseQuantity(1L);
         cartService.increaseQuantity(2L);
 
-        when(itemService.getItemEntityById(1L)).thenReturn(item1);
-        when(itemService.getItemEntityById(2L)).thenReturn(item2);
+        when(itemService.getItemEntitiesByIds(Set.of(1L, 2L))).thenReturn(Map.of(1L, item1, 2L,item2));
 
         // when
         List<ItemDto> cartItems = cartService.getCartItems();
@@ -188,8 +188,7 @@ class CartServiceImplTest {
         assertEquals(1, itemDto2.count());
         assertEquals(4500L, itemDto2.price());
 
-        verify(itemService, times(1)).getItemEntityById(1L);
-        verify(itemService, times(1)).getItemEntityById(2L);
+        verify(itemService, times(1)).getItemEntitiesByIds(Set.of(1L, 2L));
     }
 
     @Test
@@ -209,13 +208,14 @@ class CartServiceImplTest {
         cartService.increaseQuantity(1L);
         cartService.increaseQuantity(2L);
 
-        when(itemService.getItemEntityById(1L)).thenReturn(item1);
-        when(itemService.getItemEntityById(2L)).thenReturn(item2);
+        when(itemService.getItemEntitiesByIds(anySet())).thenReturn(Map.of(1L, item1, 2L, item2));
 
         // when
-        Long total = cartService.getTotalPrice();
+        List<ItemDto> cartItems = cartService.getCartItems();
+        Long total = cartService.getTotalPrice(cartItems);
 
         // then
         assertEquals(9500L, total);
+        verify(itemService, times(1)).getItemEntitiesByIds(Set.of(1L, 2L));
     }
 }

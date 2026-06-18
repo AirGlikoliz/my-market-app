@@ -63,9 +63,12 @@ public class CartServiceImpl implements CartService {
 
     @Override
     public List<ItemDto> getCartItems() {
+        if (cart.isEmpty()) return List.of();
+
+        Map<Long, Item> itemMap = itemService.getItemEntitiesByIds(cart.keySet());
         return cart.entrySet().stream()
             .map(entry -> {
-                Item item = itemService.getItemEntityById(entry.getKey());
+                Item item = itemMap.get(entry.getKey());
                 return ItemDto.builder()
                     .id(item.getId())
                     .title(item.getTitle())
@@ -79,12 +82,9 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
-    public Long getTotalPrice() {
-        return cart.entrySet().stream()
-            .mapToLong(entry -> {
-                Item item = itemService.getItemEntityById(entry.getKey());
-                return item.getPrice() * entry.getValue();
-            })
-            .sum();
+    public Long getTotalPrice(List<ItemDto> cartItems) {
+        if (cart.isEmpty()) return 0L;
+
+        return cartItems.stream().mapToLong(item -> item.price() * item.count()).sum();
     }
 }

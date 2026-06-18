@@ -39,7 +39,7 @@ public class ItemController {
 
         List<ItemDto> itemsWithCount = ControllerUtil.enrichWithCartCounts(itemPage.getContent(), cartService.getCart());
 
-        model.addAttribute("items", ControllerUtil.buildGrid(itemsWithCount));
+        model.addAttribute("items", itemsWithCount);
         model.addAttribute("search", search != null ? search : "");
         model.addAttribute("sort", sort);
         model.addAttribute("paging", PagingInfo.builder()

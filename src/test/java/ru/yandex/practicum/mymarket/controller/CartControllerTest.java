@@ -43,7 +43,7 @@ class CartControllerTest {
         Long total = 9500L;
 
         when(cartService.getCartItems()).thenReturn(cartItems);
-        when(cartService.getTotalPrice()).thenReturn(total);
+        when(cartService.getTotalPrice(anyList())).thenReturn(total);
 
         // when & then
         mockMvc.perform(get("/cart/items"))
@@ -55,14 +55,15 @@ class CartControllerTest {
                 .andExpect(model().attribute("total", total));
 
         verify(cartService, times(1)).getCartItems();
-        verify(cartService, times(1)).getTotalPrice();
+        verify(cartService, times(1)).getTotalPrice(cartItems);
     }
 
     @Test
     void getCartItems_WhenCartEmpty_ShouldReturnEmptyPage() throws Exception {
         // given
-        when(cartService.getCartItems()).thenReturn(List.of());
-        when(cartService.getTotalPrice()).thenReturn(0L);
+        List<ItemDto> emptyList = List.of();
+        when(cartService.getCartItems()).thenReturn(emptyList);
+        when(cartService.getTotalPrice(anyList())).thenReturn(0L);
 
         // when & then
         mockMvc.perform(get("/cart/items"))
@@ -72,7 +73,7 @@ class CartControllerTest {
                 .andExpect(model().attribute("total", 0L));
 
         verify(cartService, times(1)).getCartItems();
-        verify(cartService, times(1)).getTotalPrice();
+        verify(cartService, times(1)).getTotalPrice(emptyList);
     }
 
     @Test

@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
 import ru.yandex.practicum.mymarket.dto.OrderDto;
+import ru.yandex.practicum.mymarket.entity.Item;
 import ru.yandex.practicum.mymarket.entity.Order;
 import ru.yandex.practicum.mymarket.entity.OrderItem;
 import ru.yandex.practicum.mymarket.exception.OrderNotFoundException;
@@ -32,7 +33,7 @@ public class OrderServiceImpl implements OrderService {
 
         if (cartItems.isEmpty()) throw new IllegalArgumentException("Cannot create empty order");
 
-        Long totalSum = cartService.getTotalPrice();
+        Long totalSum = cartService.getTotalPrice(cartItems);
 
         Order order = Order.builder().totalSum(totalSum).build();
 

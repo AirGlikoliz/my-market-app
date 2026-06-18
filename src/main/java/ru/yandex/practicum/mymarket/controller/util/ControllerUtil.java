@@ -22,17 +22,4 @@ public class ControllerUtil {
                  .build())
             .toList();
     }
-
-    public static List<List<ItemDto>> buildGrid(List<ItemDto> items) {
-        List<List<ItemDto>> grid = new ArrayList<>();
-
-        for (int i = 0; i < items.size(); i += COLUMNS_PER_ROW) {
-            List<ItemDto> row = new ArrayList<>();
-            for (int j = i; j < i + COLUMNS_PER_ROW && j < items.size(); j++) {
-                row.add(items.get(j));
-            }
-            grid.add(row);
-        }
-        return grid;
-    }
 }

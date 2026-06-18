@@ -8,6 +8,9 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import ru.yandex.practicum.mymarket.entity.Item;
 
+import java.util.List;
+import java.util.Set;
+
 @Repository
 public interface ItemRepository extends JpaRepository<Item, Long> {
 
@@ -15,5 +18,7 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
             "LOWER(i.title) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
             "LOWER(i.description) LIKE LOWER(CONCAT('%', :search, '%'))")
     Page<Item> findAllWithSearch(@Param("search") String search, Pageable pageable);
+
+    List<Item> findAllByIdIn(Set<Long> ids);
 
 }
