@@ -1,14 +1,14 @@
 package ru.yandex.practicum.mymarket.service;
 
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.dto.OrderDto;
-
-import java.util.List;
 
 public interface OrderService {
 
-    OrderDto createOrderFromCart();
+    Mono<OrderDto> createOrderFromCart();
 
-    OrderDto getOrderById(Long id);
+    Mono<OrderDto> getOrderById(Long id);
 
-    List<OrderDto> getAllOrders();
+    Flux<OrderDto> getAllOrders();
 }

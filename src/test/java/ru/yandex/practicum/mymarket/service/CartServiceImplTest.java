@@ -3,9 +3,10 @@ package ru.yandex.practicum.mymarket.service;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Flux;
+import reactor.test.StepVerifier;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
 import ru.yandex.practicum.mymarket.entity.Item;
 
@@ -14,7 +15,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -23,7 +23,6 @@ class CartServiceImplTest {
     @Mock
     private ItemService itemService;
 
-    @InjectMocks
     private CartServiceImpl cartService;
 
     private Item item1;
@@ -31,6 +30,8 @@ class CartServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        cartService = new CartServiceImpl(itemService);
+
         item1 = Item.builder()
                 .id(1L)
                 .title("Мяч")
@@ -132,10 +133,10 @@ class CartServiceImplTest {
         cartService.increaseQuantity(1L);
         cartService.increaseQuantity(2L);
 
-        // when
-        cartService.clearCart();
+        // when / then
+        StepVerifier.create(cartService.clearCart())
+                .verifyComplete();
 
-        // then
         Map<Long, Integer> cart = cartService.getCart();
         assertTrue(cart.isEmpty());
     }
@@ -162,12 +163,16 @@ class CartServiceImplTest {
         cartService.increaseQuantity(1L);
         cartService.increaseQuantity(2L);
 
-        when(itemService.getItemEntitiesByIds(Set.of(1L, 2L))).thenReturn(Map.of(1L, item1, 2L,item2));
+        when(itemService.getItemEntitiesByIds(Set.of(1L, 2L)))
+                .thenReturn(Flux.just(item1, item2));
 
         // when
-        List<ItemDto> cartItems = cartService.getCartItems();
+        List<ItemDto> cartItems = cartService.getCartItems()
+                .collectList()
+                .block();
 
         // then
+        assertNotNull(cartItems);
         assertEquals(2, cartItems.size());
 
         ItemDto itemDto1 = cartItems.stream()
@@ -192,13 +197,12 @@ class CartServiceImplTest {
     }
 
     @Test
-    void getCartItems_WhenCartEmpty_ShouldReturnEmptyList() {
-        // when
-        List<ItemDto> cartItems = cartService.getCartItems();
+    void getCartItems_WhenCartEmpty_ShouldReturnEmptyFlux() {
+        // when / then
+        StepVerifier.create(cartService.getCartItems())
+                .verifyComplete();
 
-        // then
-        assertTrue(cartItems.isEmpty());
-        verify(itemService, never()).getItemEntityById(anyLong());
+        verify(itemService, never()).getItemEntitiesByIds(anySet());
     }
 
     @Test
@@ -208,14 +212,14 @@ class CartServiceImplTest {
         cartService.increaseQuantity(1L);
         cartService.increaseQuantity(2L);
 
-        when(itemService.getItemEntitiesByIds(anySet())).thenReturn(Map.of(1L, item1, 2L, item2));
+        when(itemService.getItemEntitiesByIds(Set.of(1L, 2L)))
+                .thenReturn(Flux.just(item1, item2));
 
-        // when
-        List<ItemDto> cartItems = cartService.getCartItems();
-        Long total = cartService.getTotalPrice(cartItems);
+        // when / then
+        StepVerifier.create(cartService.getTotalPrice())
+                .expectNext(9500L)
+                .verifyComplete();
 
-        // then
-        assertEquals(9500L, total);
         verify(itemService, times(1)).getItemEntitiesByIds(Set.of(1L, 2L));
     }
 }

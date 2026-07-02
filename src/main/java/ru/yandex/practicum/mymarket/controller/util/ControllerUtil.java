@@ -8,8 +8,6 @@ import java.util.Map;
 
 public class ControllerUtil {
 
-    private static final int COLUMNS_PER_ROW = 3;
-
     public static List<ItemDto> enrichWithCartCounts(List<ItemDto> items, Map<Long, Integer> cart) {
         return items.stream()
             .map(item -> ItemDto.builder()

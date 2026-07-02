@@ -1,24 +1,42 @@
 package ru.yandex.practicum.mymarket.repository;
 
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.r2dbc.repository.Query;
+import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import org.springframework.stereotype.Repository;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.entity.Item;
 
-import java.util.List;
-import java.util.Set;
+import java.util.Collection;
 
 @Repository
-public interface ItemRepository extends JpaRepository<Item, Long> {
+public interface ItemRepository extends ReactiveCrudRepository<Item, Long>{
 
-    @Query("SELECT i FROM Item i WHERE " +
-            "LOWER(i.title) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
-            "LOWER(i.description) LIKE LOWER(CONCAT('%', :search, '%'))")
-    Page<Item> findAllWithSearch(@Param("search") String search, Pageable pageable);
+    @Query("""
+        SELECT *
+        FROM items
+        WHERE (:search IS NULL OR :search = '')
+           OR LOWER(title) LIKE LOWER(CONCAT('%', :search, '%'))
+           OR LOWER(description) LIKE LOWER(CONCAT('%', :search, '%'))
+        ORDER BY
+            CASE WHEN :sort = 'TITLE_ASC' THEN title END ASC,
+            CASE WHEN :sort = 'PRICE_ASC' THEN price END ASC,
+            id ASC
+        LIMIT :#{#pageable.pageSize}
+        OFFSET :#{#pageable.offset}
+    """)
+    Flux<Item> findPage(String search, String sort, Pageable pageable);
 
-    List<Item> findAllByIdIn(Set<Long> ids);
+    @Query("""
+        SELECT COUNT(*)
+        FROM items
+        WHERE (:search IS NULL OR :search = '')
+           OR LOWER(title) LIKE LOWER(CONCAT('%', :search, '%'))
+           OR LOWER(description) LIKE LOWER(CONCAT('%', :search, '%'))
+    """)
+    Mono<Long> countBySearch(String search);
 
+    Flux<Item> findAllByIdIn(Collection<Long> ids);
 }

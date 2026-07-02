@@ -3,19 +3,15 @@ package ru.yandex.practicum.mymarket.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.web.context.annotation.SessionScope;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
-import ru.yandex.practicum.mymarket.entity.Item;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 @Service
-//Чтобы несколько пользователей имели свою корзину, добавил сессионный жизненный цикл бина
-@SessionScope
 @RequiredArgsConstructor
 @Slf4j
 public class CartServiceImpl implements CartService {
@@ -51,9 +47,10 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
-    public void clearCart() {
+    public Mono<Void> clearCart() {
         log.info("Clearing cart");
         cart.clear();
+        return Mono.empty();
     }
 
     @Override
@@ -62,29 +59,27 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
-    public List<ItemDto> getCartItems() {
-        if (cart.isEmpty()) return List.of();
-
-        Map<Long, Item> itemMap = itemService.getItemEntitiesByIds(cart.keySet());
-        return cart.entrySet().stream()
-            .map(entry -> {
-                Item item = itemMap.get(entry.getKey());
+    public Flux<ItemDto> getCartItems() {
+        if (cart.isEmpty()) return Flux.empty();
+        return itemService.getItemEntitiesByIds(cart.keySet())
+            .map(item -> {
+                Integer count = cart.get(item.getId());
                 return ItemDto.builder()
                     .id(item.getId())
                     .title(item.getTitle())
                     .description(item.getDescription())
                     .imgPath(item.getImgPath())
                     .price(item.getPrice())
-                    .count(entry.getValue())
+                    .count(count)
                     .build();
-            })
-            .collect(Collectors.toList());
+            });
     }
 
     @Override
-    public Long getTotalPrice(List<ItemDto> cartItems) {
-        if (cart.isEmpty()) return 0L;
-
-        return cartItems.stream().mapToLong(item -> item.price() * item.count()).sum();
+    public Mono<Long> getTotalPrice() {
+        if (cart.isEmpty()) return Mono.just(0L);
+        return getCartItems()
+                .map(item -> item.price() * item.count())
+                .reduce(0L, Long::sum);
     }
 }

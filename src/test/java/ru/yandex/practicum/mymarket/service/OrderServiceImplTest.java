@@ -6,27 +6,30 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Transactional;
+import reactor.test.StepVerifier;
 import ru.yandex.practicum.mymarket.dto.OrderDto;
 import ru.yandex.practicum.mymarket.entity.Item;
 import ru.yandex.practicum.mymarket.entity.Order;
+import ru.yandex.practicum.mymarket.entity.OrderItem;
 import ru.yandex.practicum.mymarket.exception.OrderNotFoundException;
 import ru.yandex.practicum.mymarket.repository.ItemRepository;
+import ru.yandex.practicum.mymarket.repository.OrderItemRepository;
 import ru.yandex.practicum.mymarket.repository.OrderRepository;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-//Использовал эту аннотацию потому что в CartServiceImpl стоит @SessionScope
 @SpringBootTest
 @ActiveProfiles("test")
-@Transactional
 @Import({OrderServiceImpl.class, CartServiceImpl.class, ItemServiceImpl.class})
 class OrderServiceImplTest {
 
     @Autowired
     private OrderRepository orderRepository;
+
+    @Autowired
+    private OrderItemRepository orderItemRepository;
 
     @Autowired
     private ItemRepository itemRepository;
@@ -37,13 +40,14 @@ class OrderServiceImplTest {
     @Autowired
     private CartService cartService;
 
-    @Autowired
-    private ItemService itemService;
+    private List<Item> savedItems;
 
     @BeforeEach
     void setUp() {
-        orderRepository.deleteAll();
-        itemRepository.deleteAll();
+        orderItemRepository.deleteAll().block();
+        orderRepository.deleteAll().block();
+        itemRepository.deleteAll().block();
+        cartService.clearCart().block();
 
         Item item1 = Item.builder()
                 .title("Мяч футбольный")
@@ -59,57 +63,63 @@ class OrderServiceImplTest {
                 .price(4500L)
                 .build();
 
-        itemRepository.saveAll(List.of(item1, item2));
+        savedItems = itemRepository.saveAll(List.of(item1, item2))
+                .collectList()
+                .block();
     }
 
     @Test
     void createOrderFromCart_Success() {
         // given
-        List<Item> items = itemRepository.findAll();
-        Long item1Id = items.get(0).getId();
-        Long item2Id = items.get(1).getId();
+        Long item1Id = savedItems.get(0).getId();
+        Long item2Id = savedItems.get(1).getId();
 
         cartService.increaseQuantity(item1Id);
         cartService.increaseQuantity(item1Id);
         cartService.increaseQuantity(item2Id);
 
-        // when
-        OrderDto result = orderService.createOrderFromCart();
+        // when / then
+        OrderDto result = orderService.createOrderFromCart().block();
 
-        // then
         assertNotNull(result);
         assertNotNull(result.id());
         assertEquals(9500L, result.totalSum());
         assertEquals(2, result.items().size());
 
-        assertTrue(cartService.getCartItems().isEmpty());
+        List<Item> cartLeft = cartService.getCartItems().collectList().block()
+                .stream().map(dto -> (Item) null).toList();
+        assertTrue(cartService.getCartItems().collectList().block().isEmpty());
 
-        Order savedOrder = orderRepository.findById(result.id()).orElseThrow();
+        Order savedOrder = orderRepository.findById(result.id()).block();
+        assertNotNull(savedOrder);
         assertEquals(9500L, savedOrder.getTotalSum());
-        assertEquals(2, savedOrder.getItems().size());
+
+        List<OrderItem> savedOrderItems = orderItemRepository.findAllByOrderId(savedOrder.getId())
+                .collectList()
+                .block();
+        assertEquals(2, savedOrderItems.size());
     }
 
     @Test
     void createOrderFromCart_EmptyCart_ShouldThrowException() {
-        // when & then
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> orderService.createOrderFromCart());
+        // when / then
+        StepVerifier.create(orderService.createOrderFromCart())
+                .expectErrorMatches(ex -> ex instanceof IllegalArgumentException
+                        && ex.getMessage().equals("Cannot create empty order"))
+                .verify();
 
-        assertEquals("Cannot create empty order", exception.getMessage());
-
-        assertEquals(0, orderRepository.count());
+        assertEquals(0L, orderRepository.count().block());
     }
 
     @Test
     void createOrderFromCart_WithSingleItem_Success() {
         // given
-        List<Item> items = itemRepository.findAll();
-        Long itemId = items.get(0).getId();
+        Long itemId = savedItems.get(0).getId();
 
         cartService.increaseQuantity(itemId);
 
         // when
-        OrderDto result = orderService.createOrderFromCart();
+        OrderDto result = orderService.createOrderFromCart().block();
 
         // then
         assertNotNull(result);
@@ -120,30 +130,29 @@ class OrderServiceImplTest {
         assertEquals(1, result.items().get(0).count());
         assertEquals(2500L, result.items().get(0).price());
 
-        assertTrue(cartService.getCartItems().isEmpty());
+        assertTrue(cartService.getCartItems().collectList().block().isEmpty());
     }
 
     @Test
     void getOrderById_Success() {
         // given
-        List<Item> items = itemRepository.findAll();
-        Long itemId = items.get(0).getId();
+        Long itemId = savedItems.get(0).getId();
 
         cartService.increaseQuantity(itemId);
         cartService.increaseQuantity(itemId);
 
-        OrderDto createdOrder = orderService.createOrderFromCart();
+        OrderDto createdOrder = orderService.createOrderFromCart().block();
 
-        // when
-        OrderDto result = orderService.getOrderById(createdOrder.id());
-
-        // then
-        assertNotNull(result);
-        assertEquals(createdOrder.id(), result.id());
-        assertEquals(5000L, result.totalSum());
-        assertEquals(1, result.items().size());
-        assertEquals("Мяч футбольный", result.items().get(0).title());
-        assertEquals(2, result.items().get(0).count());
+        // when / then
+        StepVerifier.create(orderService.getOrderById(createdOrder.id()))
+                .assertNext(result -> {
+                    assertEquals(createdOrder.id(), result.id());
+                    assertEquals(5000L, result.totalSum());
+                    assertEquals(1, result.items().size());
+                    assertEquals("Мяч футбольный", result.items().get(0).title());
+                    assertEquals(2, result.items().get(0).count());
+                })
+                .verifyComplete();
     }
 
     @Test
@@ -151,35 +160,34 @@ class OrderServiceImplTest {
         // given
         Long nonExistingId = 999L;
 
-        // when & then
-        OrderNotFoundException exception = assertThrows(OrderNotFoundException.class,
-                () -> orderService.getOrderById(nonExistingId));
-
-        assertEquals("Order not found with id: 999", exception.getMessage());
+        // when / then
+        StepVerifier.create(orderService.getOrderById(nonExistingId))
+                .expectErrorMatches(ex -> ex instanceof OrderNotFoundException
+                        && ex.getMessage().equals("Order not found with id: 999"))
+                .verify();
     }
 
     @Test
     void getAllOrders_ShouldReturnAllOrdersSortedByDateDesc() throws InterruptedException {
         // given
-        List<Item> items = itemRepository.findAll();
-        Long itemId = items.get(0).getId();
+        Long itemId = savedItems.get(0).getId();
 
         cartService.increaseQuantity(itemId);
-        OrderDto order1 = orderService.createOrderFromCart();
+        OrderDto order1 = orderService.createOrderFromCart().block();
 
         Thread.sleep(100);
 
         cartService.increaseQuantity(itemId);
         cartService.increaseQuantity(itemId);
-        OrderDto order2 = orderService.createOrderFromCart();
+        OrderDto order2 = orderService.createOrderFromCart().block();
 
         Thread.sleep(100);
 
         cartService.increaseQuantity(itemId);
-        OrderDto order3 = orderService.createOrderFromCart();
+        OrderDto order3 = orderService.createOrderFromCart().block();
 
         // when
-        List<OrderDto> orders = orderService.getAllOrders();
+        List<OrderDto> orders = orderService.getAllOrders().collectList().block();
 
         // then
         assertNotNull(orders);
@@ -196,28 +204,24 @@ class OrderServiceImplTest {
 
     @Test
     void getAllOrders_Empty_ShouldReturnEmptyList() {
-        // when
-        List<OrderDto> orders = orderService.getAllOrders();
-
-        // then
-        assertNotNull(orders);
-        assertTrue(orders.isEmpty());
+        // when / then
+        StepVerifier.create(orderService.getAllOrders())
+                .verifyComplete();
     }
 
     @Test
     void createOrder_ShouldClearCartAfterCreation() {
         // given
-        List<Item> items = itemRepository.findAll();
-        Long itemId = items.get(0).getId();
+        Long itemId = savedItems.get(0).getId();
 
         cartService.increaseQuantity(itemId);
         cartService.increaseQuantity(itemId);
-        assertFalse(cartService.getCartItems().isEmpty());
+        assertFalse(cartService.getCartItems().collectList().block().isEmpty());
 
         // when
-        orderService.createOrderFromCart();
+        orderService.createOrderFromCart().block();
 
         // then
-        assertTrue(cartService.getCartItems().isEmpty());
+        assertTrue(cartService.getCartItems().collectList().block().isEmpty());
     }
 }

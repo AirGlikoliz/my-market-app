@@ -3,22 +3,23 @@ package ru.yandex.practicum.mymarket.service;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.autoconfigure.data.r2dbc.DataR2dbcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.test.context.ActiveProfiles;
+import reactor.core.publisher.Flux;
+import reactor.test.StepVerifier;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
 import ru.yandex.practicum.mymarket.entity.Item;
 import ru.yandex.practicum.mymarket.exception.ItemNotFoundException;
 import ru.yandex.practicum.mymarket.repository.ItemRepository;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DataJpaTest
+@DataR2dbcTest
 @ActiveProfiles("test")
 @Import(ItemServiceImpl.class)
 class ItemServiceImplTest {
@@ -29,9 +30,11 @@ class ItemServiceImplTest {
     @Autowired
     private ItemServiceImpl itemService;
 
+    private List<Item> savedItems;
+
     @BeforeEach
     void setUp() {
-        itemRepository.deleteAll();
+        itemRepository.deleteAll().block();
 
         Item item1 = Item.builder()
                 .title("Мяч футбольный")
@@ -68,8 +71,9 @@ class ItemServiceImplTest {
                 .price(1200L)
                 .build();
 
-
-        itemRepository.saveAll(List.of(item1, item2, item3, item4, item5));
+        savedItems = itemRepository.saveAll(List.of(item1, item2, item3, item4, item5))
+                .collectList()
+                .block();
     }
 
     @Test
@@ -80,7 +84,7 @@ class ItemServiceImplTest {
         String sort = "NO";
 
         // when
-        Page<ItemDto> result = itemService.getItems(null, sort, pageNumber, pageSize);
+        Page<ItemDto> result = itemService.getItems(null, sort, pageNumber, pageSize).block();
 
         // then
         assertNotNull(result);
@@ -96,7 +100,7 @@ class ItemServiceImplTest {
         String sort = "NO";
 
         // when
-        Page<ItemDto> result = itemService.getItems(search, sort, pageNumber, pageSize);
+        Page<ItemDto> result = itemService.getItems(search, sort, pageNumber, pageSize).block();
 
         // then
         assertNotNull(result);
@@ -116,7 +120,7 @@ class ItemServiceImplTest {
         String sort = "NO";
 
         // when
-        Page<ItemDto> result = itemService.getItems(search, sort, pageNumber, pageSize);
+        Page<ItemDto> result = itemService.getItems(search, sort, pageNumber, pageSize).block();
 
         // then
         assertNotNull(result);
@@ -131,7 +135,7 @@ class ItemServiceImplTest {
         int pageSize = 10;
 
         // when
-        Page<ItemDto> result = itemService.getItems(null, sort, pageNumber, pageSize);
+        Page<ItemDto> result = itemService.getItems(null, sort, pageNumber, pageSize).block();
 
         // then
         assertNotNull(result);
@@ -149,7 +153,7 @@ class ItemServiceImplTest {
         int pageSize = 10;
 
         // when
-        Page<ItemDto> result = itemService.getItems(null, sort, pageNumber, pageSize);
+        Page<ItemDto> result = itemService.getItems(null, sort, pageNumber, pageSize).block();
 
         // then
         assertNotNull(result);
@@ -169,7 +173,7 @@ class ItemServiceImplTest {
         String sort = "NO";
 
         // when
-        Page<ItemDto> result = itemService.getItems(null, sort, pageNumber, pageSize);
+        Page<ItemDto> result = itemService.getItems(null, sort, pageNumber, pageSize).block();
 
         // then
         assertNotNull(result);
@@ -179,19 +183,18 @@ class ItemServiceImplTest {
     @Test
     void getItemById_ExistingItem_ShouldReturnItem() {
         // given
-        List<Item> allItems = itemRepository.findAll();
-        Long itemId = allItems.get(0).getId();
+        Long itemId = savedItems.get(0).getId();
 
-        // when
-        ItemDto result = itemService.getItemById(itemId);
-
-        // then
-        assertNotNull(result);
-        assertEquals(itemId, result.id());
-        assertNotNull(result.title());
-        assertNotNull(result.description());
-        assertNotNull(result.imgPath());
-        assertNotNull(result.price());
+        // when / then
+        StepVerifier.create(itemService.getItemById(itemId))
+                .assertNext(result -> {
+                    assertEquals(itemId, result.id());
+                    assertNotNull(result.title());
+                    assertNotNull(result.description());
+                    assertNotNull(result.imgPath());
+                    assertNotNull(result.price());
+                })
+                .verifyComplete();
     }
 
     @Test
@@ -199,25 +202,22 @@ class ItemServiceImplTest {
         // given
         Long nonExistingId = 999L;
 
-        // when & then
-        ItemNotFoundException exception = assertThrows(ItemNotFoundException.class,
-                () -> itemService.getItemById(nonExistingId));
-
-        assertEquals("Item not found with id: 999", exception.getMessage());
+        // when / then
+        StepVerifier.create(itemService.getItemById(nonExistingId))
+                .expectErrorMatches(ex -> ex instanceof ItemNotFoundException
+                        && ex.getMessage().equals("Item not found with id: 999"))
+                .verify();
     }
 
     @Test
     void getItemEntityById_ExistingItem_ShouldReturnItemEntity() {
         // given
-        List<Item> allItems = itemRepository.findAll();
-        Long itemId = allItems.get(0).getId();
+        Long itemId = savedItems.get(0).getId();
 
-        // when
-        Item result = itemService.getItemEntityById(itemId);
-
-        // then
-        assertNotNull(result);
-        assertEquals(itemId, result.getId());
+        // when / then
+        StepVerifier.create(itemService.getItemEntityById(itemId))
+                .assertNext(result -> assertEquals(itemId, result.getId()))
+                .verifyComplete();
     }
 
     @Test
@@ -225,11 +225,11 @@ class ItemServiceImplTest {
         // given
         Long nonExistingId = 999L;
 
-        // when & then
-        ItemNotFoundException exception = assertThrows(ItemNotFoundException.class,
-                () -> itemService.getItemEntityById(nonExistingId));
-
-        assertEquals("Item not found with id: 999", exception.getMessage());
+        // when / then
+        StepVerifier.create(itemService.getItemEntityById(nonExistingId))
+                .expectErrorMatches(ex -> ex instanceof ItemNotFoundException
+                        && ex.getMessage().equals("Item not found with id: 999"))
+                .verify();
     }
 
     @Test
@@ -241,7 +241,7 @@ class ItemServiceImplTest {
         int pageSize = 10;
 
         // when
-        Page<ItemDto> result = itemService.getItems(search, sort, pageNumber, pageSize);
+        Page<ItemDto> result = itemService.getItems(search, sort, pageNumber, pageSize).block();
 
         // then
         assertNotNull(result);
@@ -251,30 +251,31 @@ class ItemServiceImplTest {
     @Test
     void getItemEntitiesByIds_ShouldReturnAllItems() {
         // given
-        List<Item> allItems = itemRepository.findAll();
-        Set<Long> ids = Set.of(allItems.get(0).getId(), allItems.get(1).getId(), allItems.get(2).getId());
+        Set<Long> ids = Set.of(
+                savedItems.get(0).getId(),
+                savedItems.get(1).getId(),
+                savedItems.get(2).getId()
+        );
 
         // when
-        Map<Long, Item> result = itemService.getItemEntitiesByIds(ids);
+        List<Item> result = itemService.getItemEntitiesByIds(ids)
+                .collectList()
+                .block();
 
         // then
         assertNotNull(result);
         assertEquals(3, result.size());
 
+        List<Long> resultIds = result.stream().map(Item::getId).toList();
         for (Long id : ids) {
-            assertTrue(result.containsKey(id));
-            assertNotNull(result.get(id));
+            assertTrue(resultIds.contains(id));
         }
     }
 
     @Test
-    void getItemEntitiesByIds_WithEmptySet_ShouldReturnEmptyMap() {
-        // when
-        Map<Long, Item> result = itemService.getItemEntitiesByIds(Set.of());
-
-        // then
-        assertNotNull(result);
-        assertTrue(result.isEmpty());
+    void getItemEntitiesByIds_WithEmptySet_ShouldReturnEmptyFlux() {
+        // when / then
+        StepVerifier.create(itemService.getItemEntitiesByIds(Set.of()))
+                .verifyComplete();
     }
-
 }

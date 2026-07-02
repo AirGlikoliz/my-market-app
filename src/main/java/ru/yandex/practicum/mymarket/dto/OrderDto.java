@@ -2,6 +2,7 @@ package ru.yandex.practicum.mymarket.dto;
 
 import lombok.Builder;
 import ru.yandex.practicum.mymarket.entity.Order;
+import ru.yandex.practicum.mymarket.entity.OrderItem;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -15,8 +16,8 @@ public record OrderDto(
         Long totalSum
 ) {
 
-    public static OrderDto convertToDto(Order order) {
-        List<OrderItemDto> itemDtos = order.getItems().stream()
+    public static OrderDto convertToDto(Order order, List<OrderItem> items) {
+        List<OrderItemDto> itemDtos = items.stream()
                 .map(item -> OrderItemDto.builder()
                         .id(item.getId())
                         .title(item.getTitle())
@@ -29,6 +30,14 @@ public record OrderDto(
                 .id(order.getId())
                 .orderDate(order.getOrderDate())
                 .items(itemDtos)
+                .totalSum(order.getTotalSum())
+                .build();
+    }
+
+    public static OrderDto convertToDto(Order order) {
+        return OrderDto.builder()
+                .id(order.getId())
+                .orderDate(order.getOrderDate())
                 .totalSum(order.getTotalSum())
                 .build();
     }

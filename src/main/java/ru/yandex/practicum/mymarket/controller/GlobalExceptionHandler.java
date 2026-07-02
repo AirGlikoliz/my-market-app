@@ -4,7 +4,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.servlet.ModelAndView;
+import org.springframework.web.reactive.result.view.Rendering;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.exception.ItemNotFoundException;
 import ru.yandex.practicum.mymarket.exception.OrderNotFoundException;
 
@@ -13,26 +14,22 @@ import ru.yandex.practicum.mymarket.exception.OrderNotFoundException;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler({ItemNotFoundException.class, OrderNotFoundException.class})
-    public ModelAndView handleNotFound(RuntimeException ex) {
+    public Mono<Rendering> handleNotFound(RuntimeException ex) {
         log.error("Not found error: {}", ex.getMessage());
-
-        ModelAndView mav = new ModelAndView("error");
-        mav.addObject("error", "404");
-        mav.addObject("message", ex.getMessage());
-        mav.setStatus(HttpStatus.NOT_FOUND);
-
-        return mav;
+        return Mono.just(Rendering.view("error")
+                .status(HttpStatus.NOT_FOUND)
+                .modelAttribute("error", "404")
+                .modelAttribute("message", ex.getMessage())
+                .build());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ModelAndView handleBadRequest(IllegalArgumentException ex) {
+    public Mono<Rendering> handleBadRequest(IllegalArgumentException ex) {
         log.error("Bad request: {}", ex.getMessage());
-
-        ModelAndView mav = new ModelAndView("error");
-        mav.addObject("error", "400");
-        mav.addObject("message", ex.getMessage());
-        mav.setStatus(HttpStatus.BAD_REQUEST);
-
-        return mav;
+        return Mono.just(Rendering.view("error")
+                .status(HttpStatus.BAD_REQUEST)
+                .modelAttribute("error", "400")
+                .modelAttribute("message", ex.getMessage())
+                .build());
     }
 }

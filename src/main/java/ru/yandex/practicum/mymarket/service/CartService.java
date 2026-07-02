@@ -1,8 +1,9 @@
 package ru.yandex.practicum.mymarket.service;
 
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
 
-import java.util.List;
 import java.util.Map;
 
 public interface CartService {
@@ -13,11 +14,11 @@ public interface CartService {
 
     void decreaseQuantity(Long itemId);
 
-    void clearCart();
+    Mono<Void> clearCart();
 
     Map<Long, Integer> getCart();
 
-    List<ItemDto> getCartItems();
+    Flux<ItemDto> getCartItems();
 
-    Long getTotalPrice(List<ItemDto> cartItems);
+    Mono<Long> getTotalPrice();
 }
