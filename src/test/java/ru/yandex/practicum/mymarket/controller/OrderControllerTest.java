@@ -16,6 +16,7 @@ import ru.yandex.practicum.mymarket.service.OrderService;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @WebFluxTest(OrderController.class)
@@ -32,7 +33,6 @@ class OrderControllerTest {
 
     @Test
     void getOrders_ShouldReturnOrdersPage() {
-        // given
         List<OrderDto> orders = List.of(
                 order(1L, 5000L, LocalDateTime.now().minusDays(1),
                         List.of(orderItem(1L, "Мяч", 2500L, 2))),
@@ -43,7 +43,6 @@ class OrderControllerTest {
 
         when(orderService.getAllOrders()).thenReturn(Flux.fromIterable(orders));
 
-        // when & then
         webTestClient.get()
                 .uri("/orders")
                 .exchange()
@@ -63,10 +62,8 @@ class OrderControllerTest {
 
     @Test
     void getOrders_WhenNoOrders_ShouldReturnEmptyPage() {
-        // given
         when(orderService.getAllOrders()).thenReturn(Flux.empty());
 
-        // when & then
         webTestClient.get()
                 .uri("/orders")
                 .exchange()
@@ -83,14 +80,12 @@ class OrderControllerTest {
 
     @Test
     void getOrder_ShouldReturnOrderPage() {
-        // given
         Long orderId = 1L;
         OrderDto order = order(orderId, 5000L, LocalDateTime.now(),
                 List.of(orderItem(1L, "Мяч", 2500L, 2)));
 
         when(orderService.getOrderById(orderId)).thenReturn(Mono.just(order));
 
-        // when & then
         webTestClient.get()
                 .uri("/orders/{id}", orderId)
                 .exchange()
@@ -108,14 +103,12 @@ class OrderControllerTest {
 
     @Test
     void getOrder_WithNewOrderFlag_ShouldReturnOrderPage() {
-        // given
         Long orderId = 1L;
         OrderDto order = order(orderId, 5000L, LocalDateTime.now(),
                 List.of(orderItem(1L, "Мяч", 2500L, 2)));
 
         when(orderService.getOrderById(orderId)).thenReturn(Mono.just(order));
 
-        // when & then
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/orders/{id}")
@@ -135,45 +128,40 @@ class OrderControllerTest {
 
     @Test
     void createOrder_WithCartNotEmpty_ShouldCreateOrderAndRedirect() {
-        // given
         List<ItemDto> cartItems = List.of(cartItem(1L, "Мяч", 2500L, 2));
 
         OrderDto createdOrder = order(1L, 5000L, LocalDateTime.now(),
                 List.of(orderItem(1L, "Мяч", 2500L, 2)));
 
-        when(cartService.getCartItems()).thenReturn(Flux.fromIterable(cartItems));
-        when(orderService.createOrderFromCart()).thenReturn(Mono.just(createdOrder));
+        when(cartService.getCartItems(anyString())).thenReturn(Flux.fromIterable(cartItems));
+        when(orderService.createOrderFromCart(anyString())).thenReturn(Mono.just(createdOrder));
 
-        // when & then
         webTestClient.post()
                 .uri("/buy")
                 .exchange()
                 .expectStatus().is3xxRedirection()
                 .expectHeader().valueEquals("Location", "/orders/1?newOrder=true");
 
-        verify(cartService, times(1)).getCartItems();
-        verify(orderService, times(1)).createOrderFromCart();
+        verify(cartService, times(1)).getCartItems(anyString());
+        verify(orderService, times(1)).createOrderFromCart(anyString());
     }
 
     @Test
     void createOrder_WithEmptyCart_ShouldRedirectToCart() {
-        // given
-        when(cartService.getCartItems()).thenReturn(Flux.empty());
+        when(cartService.getCartItems(anyString())).thenReturn(Flux.empty());
 
-        // when & then
         webTestClient.post()
                 .uri("/buy")
                 .exchange()
                 .expectStatus().is3xxRedirection()
                 .expectHeader().valueEquals("Location", "/cart");
 
-        verify(cartService, times(1)).getCartItems();
-        verify(orderService, never()).createOrderFromCart();
+        verify(cartService, times(1)).getCartItems(anyString());
+        verify(orderService, never()).createOrderFromCart(anyString());
     }
 
     @Test
     void createOrder_WithMultipleItems_ShouldCreateOrderAndRedirect() {
-        // given
         List<ItemDto> cartItems = List.of(
                 cartItem(1L, "Мяч", 2500L, 2),
                 cartItem(2L, "Ракетка", 4500L, 1)
@@ -183,44 +171,28 @@ class OrderControllerTest {
                 List.of(orderItem(1L, "Мяч", 2500L, 2),
                         orderItem(2L, "Ракетка", 4500L, 1)));
 
-        when(cartService.getCartItems()).thenReturn(Flux.fromIterable(cartItems));
-        when(orderService.createOrderFromCart()).thenReturn(Mono.just(createdOrder));
+        when(cartService.getCartItems(anyString())).thenReturn(Flux.fromIterable(cartItems));
+        when(orderService.createOrderFromCart(anyString())).thenReturn(Mono.just(createdOrder));
 
-        // when & then
         webTestClient.post()
                 .uri("/buy")
                 .exchange()
                 .expectStatus().is3xxRedirection()
                 .expectHeader().valueEquals("Location", "/orders/2?newOrder=true");
 
-        verify(cartService, times(1)).getCartItems();
-        verify(orderService, times(1)).createOrderFromCart();
+        verify(cartService, times(1)).getCartItems(anyString());
+        verify(orderService, times(1)).createOrderFromCart(anyString());
     }
 
     private static OrderItemDto orderItem(Long id, String title, Long price, int count) {
-        return OrderItemDto.builder()
-                .id(id)
-                .title(title)
-                .price(price)
-                .count(count)
-                .build();
+        return OrderItemDto.builder().id(id).title(title).price(price).count(count).build();
     }
 
     private static OrderDto order(Long id, Long totalSum, LocalDateTime date, List<OrderItemDto> items) {
-        return OrderDto.builder()
-                .id(id)
-                .orderDate(date)
-                .totalSum(totalSum)
-                .items(items)
-                .build();
+        return OrderDto.builder().id(id).orderDate(date).totalSum(totalSum).items(items).build();
     }
 
     private static ItemDto cartItem(Long id, String title, Long price, int count) {
-        return ItemDto.builder()
-                .id(id)
-                .title(title)
-                .price(price)
-                .count(count)
-                .build();
+        return ItemDto.builder().id(id).title(title).price(price).count(count).build();
     }
 }

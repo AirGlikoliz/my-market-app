@@ -6,7 +6,7 @@ import ru.yandex.practicum.mymarket.dto.OrderDto;
 
 public interface OrderService {
 
-    Mono<OrderDto> createOrderFromCart();
+    Mono<OrderDto> createOrderFromCart(String sessionId);
 
     Mono<OrderDto> getOrderById(Long id);
 

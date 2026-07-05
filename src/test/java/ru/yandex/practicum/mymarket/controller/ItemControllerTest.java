@@ -32,16 +32,14 @@ class ItemControllerTest {
 
     @Test
     void getItems_ShouldReturnItemsPage() {
-        // given
         ItemDto item1 = item(1L, "Мяч футбольный", "Профессиональный футбольный мяч", "/images/ball.jpg", 2500L);
         ItemDto item2 = item(2L, "Теннисная ракетка", "Облегченная теннисная ракетка", "/images/racket.jpg", 4500L);
 
         Page<ItemDto> itemPage = new PageImpl<>(List.of(item1, item2));
 
         when(itemService.getItems(anyString(), anyString(), anyInt(), anyInt())).thenReturn(Mono.just(itemPage));
-        when(cartService.getCart()).thenReturn(Map.of());
+        when(cartService.getCart(anyString())).thenReturn(Mono.just(Map.of()));
 
-        // when & then
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/items")
@@ -62,19 +60,17 @@ class ItemControllerTest {
                 });
 
         verify(itemService, times(1)).getItems(anyString(), anyString(), anyInt(), anyInt());
-        verify(cartService, times(1)).getCart();
+        verify(cartService, times(1)).getCart(anyString());
     }
 
     @Test
     void getItems_WithSearchAndSort_ShouldReturnFilteredItems() {
-        // given
         ItemDto item = item(1L, "Мяч футбольный", "Профессиональный футбольный мяч", "/images/ball.jpg", 2500L);
         Page<ItemDto> itemPage = new PageImpl<>(List.of(item));
 
         when(itemService.getItems("мяч", "ALPHA", 1, 5)).thenReturn(Mono.just(itemPage));
-        when(cartService.getCart()).thenReturn(Map.of());
+        when(cartService.getCart(anyString())).thenReturn(Mono.just(Map.of()));
 
-        // when & then
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/items")
@@ -97,14 +93,12 @@ class ItemControllerTest {
 
     @Test
     void getItems_WithPaging_ShouldReturnPagingInfo() {
-        // given
         ItemDto item = item(1L, "Мяч", null, null, 2500L);
         Page<ItemDto> itemPage = new PageImpl<>(List.of(item));
 
         when(itemService.getItems(anyString(), anyString(), eq(2), eq(2))).thenReturn(Mono.just(itemPage));
-        when(cartService.getCart()).thenReturn(Map.of());
+        when(cartService.getCart(anyString())).thenReturn(Mono.just(Map.of()));
 
-        // when & then
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/items")
@@ -127,14 +121,12 @@ class ItemControllerTest {
 
     @Test
     void getItem_ShouldReturnItemPage() {
-        // given
         Long itemId = 1L;
         ItemDto item = item(itemId, "Мяч футбольный", "Профессиональный футбольный мяч", "/images/ball.jpg", 2500L);
 
         when(itemService.getItemById(itemId)).thenReturn(Mono.just(item));
-        when(cartService.getCart()).thenReturn(Map.of());
+        when(cartService.getCart(anyString())).thenReturn(Mono.just(Map.of()));
 
-        // when & then
         webTestClient.get()
                 .uri("/items/{id}", itemId)
                 .exchange()
@@ -148,19 +140,17 @@ class ItemControllerTest {
                 });
 
         verify(itemService, times(1)).getItemById(itemId);
-        verify(cartService, times(1)).getCart();
+        verify(cartService, times(1)).getCart(anyString());
     }
 
     @Test
     void getItem_WithItemInCart_ShouldReturnItemWithCount() {
-        // given
         Long itemId = 1L;
         ItemDto item = item(itemId, "Мяч футбольный", null, null, 2500L);
 
         when(itemService.getItemById(itemId)).thenReturn(Mono.just(item));
-        when(cartService.getCart()).thenReturn(Map.of(itemId, 3));
+        when(cartService.getCart(anyString())).thenReturn(Mono.just(Map.of(itemId, 3)));
 
-        // when & then
         webTestClient.get()
                 .uri("/items/{id}", itemId)
                 .exchange()
@@ -174,45 +164,46 @@ class ItemControllerTest {
                 });
 
         verify(itemService, times(1)).getItemById(itemId);
-        verify(cartService, times(1)).getCart();
+        verify(cartService, times(1)).getCart(anyString());
     }
 
     @Test
-    void updateCartFromItems_WithPlusAction_ShouldIncreaseQuantityAndRedirect() {
+    void updateCartFromItems_WithPlusAction_ShouldApplyActionAndRedirect() {
         Long itemId = 1L;
+        when(cartService.applyAction(anyString(), eq(itemId), eq("PLUS"))).thenReturn(Mono.empty());
 
         postItemsAction(itemId, "PLUS")
                 .expectStatus().is3xxRedirection();
 
-        verify(cartService, times(1)).increaseQuantity(itemId);
-        verify(cartService, never()).decreaseQuantity(anyLong());
+        verify(cartService, times(1)).applyAction(anyString(), eq(itemId), eq("PLUS"));
     }
 
     @Test
-    void updateCartFromItems_WithMinusAction_ShouldDecreaseQuantityAndRedirect() {
+    void updateCartFromItems_WithMinusAction_ShouldApplyActionAndRedirect() {
         Long itemId = 2L;
+        when(cartService.applyAction(anyString(), eq(itemId), eq("MINUS"))).thenReturn(Mono.empty());
 
         postItemsAction(itemId, "MINUS")
                 .expectStatus().is3xxRedirection();
 
-        verify(cartService, times(1)).decreaseQuantity(itemId);
-        verify(cartService, never()).increaseQuantity(anyLong());
+        verify(cartService, times(1)).applyAction(anyString(), eq(itemId), eq("MINUS"));
     }
 
     @Test
     void updateCartFromItems_WithUnknownAction_ShouldRedirect() {
         Long itemId = 1L;
+        when(cartService.applyAction(anyString(), eq(itemId), eq("UNKNOWN"))).thenReturn(Mono.empty());
 
         postItemsAction(itemId, "UNKNOWN")
                 .expectStatus().is3xxRedirection();
 
-        verify(cartService, never()).increaseQuantity(anyLong());
-        verify(cartService, never()).decreaseQuantity(anyLong());
+        verify(cartService, times(1)).applyAction(anyString(), eq(itemId), eq("UNKNOWN"));
     }
 
     @Test
     void updateCartFromItems_WithSearchParams_ShouldRedirectWithSameParams() {
         Long itemId = 1L;
+        when(cartService.applyAction(anyString(), eq(itemId), eq("PLUS"))).thenReturn(Mono.empty());
 
         webTestClient.post()
                 .uri(uriBuilder -> uriBuilder
@@ -228,43 +219,43 @@ class ItemControllerTest {
                 .expectStatus().is3xxRedirection()
                 .expectHeader().valueEquals("Location", "/items?search=%D0%BC%D1%8F%D1%87&sort=ALPHA&pageNumber=2&pageSize=10");
 
-        verify(cartService, times(1)).increaseQuantity(itemId);
+        verify(cartService, times(1)).applyAction(anyString(), eq(itemId), eq("PLUS"));
     }
 
     @Test
-    void updateCartFromItem_WithPlusAction_ShouldIncreaseQuantityAndRedirect() {
+    void updateCartFromItem_WithPlusAction_ShouldApplyActionAndRedirect() {
         Long itemId = 1L;
+        when(cartService.applyAction(anyString(), eq(itemId), eq("PLUS"))).thenReturn(Mono.empty());
 
         postItemAction(itemId, "PLUS")
                 .expectStatus().is3xxRedirection()
                 .expectHeader().valueEquals("Location", "/items/" + itemId);
 
-        verify(cartService, times(1)).increaseQuantity(itemId);
-        verify(cartService, never()).decreaseQuantity(anyLong());
+        verify(cartService, times(1)).applyAction(anyString(), eq(itemId), eq("PLUS"));
     }
 
     @Test
-    void updateCartFromItem_WithMinusAction_ShouldDecreaseQuantityAndRedirect() {
+    void updateCartFromItem_WithMinusAction_ShouldApplyActionAndRedirect() {
         Long itemId = 2L;
+        when(cartService.applyAction(anyString(), eq(itemId), eq("MINUS"))).thenReturn(Mono.empty());
 
         postItemAction(itemId, "MINUS")
                 .expectStatus().is3xxRedirection()
                 .expectHeader().valueEquals("Location", "/items/" + itemId);
 
-        verify(cartService, times(1)).decreaseQuantity(itemId);
-        verify(cartService, never()).increaseQuantity(anyLong());
+        verify(cartService, times(1)).applyAction(anyString(), eq(itemId), eq("MINUS"));
     }
 
     @Test
     void updateCartFromItem_WithUnknownAction_ShouldRedirect() {
         Long itemId = 1L;
+        when(cartService.applyAction(anyString(), eq(itemId), eq("UNKNOWN"))).thenReturn(Mono.empty());
 
         postItemAction(itemId, "UNKNOWN")
                 .expectStatus().is3xxRedirection()
                 .expectHeader().valueEquals("Location", "/items/" + itemId);
 
-        verify(cartService, never()).increaseQuantity(anyLong());
-        verify(cartService, never()).decreaseQuantity(anyLong());
+        verify(cartService, times(1)).applyAction(anyString(), eq(itemId), eq("UNKNOWN"));
     }
 
     private static ItemDto item(Long id, String title, String description, String imgPath, Long price) {

@@ -8,17 +8,19 @@ import java.util.Map;
 
 public interface CartService {
 
-    void removeFromCart(Long itemId);
+    Mono<Void> removeFromCart(String sessionId, Long itemId);
 
-    void increaseQuantity(Long itemId);
+    Mono<Void> increaseQuantity(String sessionId, Long itemId);
 
-    void decreaseQuantity(Long itemId);
+    Mono<Void> decreaseQuantity(String sessionId, Long itemId);
 
-    Mono<Void> clearCart();
+    Mono<Void> clearCart(String sessionId);
 
-    Map<Long, Integer> getCart();
+    Mono<Map<Long, Integer>> getCart(String sessionId);
 
-    Flux<ItemDto> getCartItems();
+    Flux<ItemDto> getCartItems(String sessionId);
 
-    Mono<Long> getTotalPrice();
+    Mono<Long> getTotalPrice(String sessionId);
+
+    Mono<Void> applyAction(String sessionId, Long itemId, String action);
 }

@@ -7,7 +7,6 @@ import org.springframework.boot.test.autoconfigure.data.r2dbc.DataR2dbcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.test.context.ActiveProfiles;
-import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
 import ru.yandex.practicum.mymarket.entity.Item;
@@ -78,31 +77,25 @@ class ItemServiceImplTest {
 
     @Test
     void getItems_WithoutSearch_ShouldReturnAllItems() {
-        // given
         int pageNumber = 1;
         int pageSize = 10;
         String sort = "NO";
 
-        // when
         Page<ItemDto> result = itemService.getItems(null, sort, pageNumber, pageSize).block();
 
-        // then
         assertNotNull(result);
         assertEquals(5, result.getContent().size());
     }
 
     @Test
     void getItems_WithSearch_ShouldReturnFilteredItems() {
-        // given
         String search = "мяч";
         int pageNumber = 1;
         int pageSize = 10;
         String sort = "NO";
 
-        // when
         Page<ItemDto> result = itemService.getItems(search, sort, pageNumber, pageSize).block();
 
-        // then
         assertNotNull(result);
         assertEquals(2, result.getContent().size());
         assertTrue(result.getContent().stream().allMatch(
@@ -113,31 +106,25 @@ class ItemServiceImplTest {
 
     @Test
     void getItems_WithSearchNotFound_ShouldReturnEmptyPage() {
-        // given
         String search = "несуществующий товар";
         int pageNumber = 1;
         int pageSize = 10;
         String sort = "NO";
 
-        // when
         Page<ItemDto> result = itemService.getItems(search, sort, pageNumber, pageSize).block();
 
-        // then
         assertNotNull(result);
         assertEquals(0, result.getContent().size());
     }
 
     @Test
     void getItems_WithAlphaSort_ShouldReturnSortedByTitle() {
-        // given
         String sort = "ALPHA";
         int pageNumber = 1;
         int pageSize = 10;
 
-        // when
         Page<ItemDto> result = itemService.getItems(null, sort, pageNumber, pageSize).block();
 
-        // then
         assertNotNull(result);
         List<ItemDto> items = result.getContent();
         assertEquals(5, items.size());
@@ -147,15 +134,12 @@ class ItemServiceImplTest {
 
     @Test
     void getItems_WithPriceSort_ShouldReturnSortedByPrice() {
-        // given
         String sort = "PRICE";
         int pageNumber = 1;
         int pageSize = 10;
 
-        // when
         Page<ItemDto> result = itemService.getItems(null, sort, pageNumber, pageSize).block();
 
-        // then
         assertNotNull(result);
         List<ItemDto> items = result.getContent();
         assertEquals(5, items.size());
@@ -167,25 +151,20 @@ class ItemServiceImplTest {
 
     @Test
     void getItems_WithPagination_ShouldReturnCorrectPage() {
-        // given
         int pageNumber = 2;
         int pageSize = 2;
         String sort = "NO";
 
-        // when
         Page<ItemDto> result = itemService.getItems(null, sort, pageNumber, pageSize).block();
 
-        // then
         assertNotNull(result);
         assertEquals(2, result.getContent().size());
     }
 
     @Test
     void getItemById_ExistingItem_ShouldReturnItem() {
-        // given
         Long itemId = savedItems.get(0).getId();
 
-        // when / then
         StepVerifier.create(itemService.getItemById(itemId))
                 .assertNext(result -> {
                     assertEquals(itemId, result.id());
@@ -199,10 +178,8 @@ class ItemServiceImplTest {
 
     @Test
     void getItemById_NonExistingItem_ShouldThrowException() {
-        // given
         Long nonExistingId = 999L;
 
-        // when / then
         StepVerifier.create(itemService.getItemById(nonExistingId))
                 .expectErrorMatches(ex -> ex instanceof ItemNotFoundException
                         && ex.getMessage().equals("Item not found with id: 999"))
@@ -211,10 +188,8 @@ class ItemServiceImplTest {
 
     @Test
     void getItemEntityById_ExistingItem_ShouldReturnItemEntity() {
-        // given
         Long itemId = savedItems.get(0).getId();
 
-        // when / then
         StepVerifier.create(itemService.getItemEntityById(itemId))
                 .assertNext(result -> assertEquals(itemId, result.getId()))
                 .verifyComplete();
@@ -222,10 +197,8 @@ class ItemServiceImplTest {
 
     @Test
     void getItemEntityById_NonExistingItem_ShouldThrowException() {
-        // given
         Long nonExistingId = 999L;
 
-        // when / then
         StepVerifier.create(itemService.getItemEntityById(nonExistingId))
                 .expectErrorMatches(ex -> ex instanceof ItemNotFoundException
                         && ex.getMessage().equals("Item not found with id: 999"))
@@ -234,35 +207,29 @@ class ItemServiceImplTest {
 
     @Test
     void getItems_WithEmptySearch_ShouldReturnAllItems() {
-        // given
         String search = "";
         String sort = "NO";
         int pageNumber = 1;
         int pageSize = 10;
 
-        // when
         Page<ItemDto> result = itemService.getItems(search, sort, pageNumber, pageSize).block();
 
-        // then
         assertNotNull(result);
         assertEquals(5, result.getContent().size());
     }
 
     @Test
     void getItemEntitiesByIds_ShouldReturnAllItems() {
-        // given
         Set<Long> ids = Set.of(
                 savedItems.get(0).getId(),
                 savedItems.get(1).getId(),
                 savedItems.get(2).getId()
         );
 
-        // when
         List<Item> result = itemService.getItemEntitiesByIds(ids)
                 .collectList()
                 .block();
 
-        // then
         assertNotNull(result);
         assertEquals(3, result.size());
 
@@ -274,7 +241,6 @@ class ItemServiceImplTest {
 
     @Test
     void getItemEntitiesByIds_WithEmptySet_ShouldReturnEmptyFlux() {
-        // when / then
         StepVerifier.create(itemService.getItemEntitiesByIds(Set.of()))
                 .verifyComplete();
     }

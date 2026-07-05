@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS cart_items;
 DROP TABLE IF EXISTS order_items;
 DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS items;
@@ -8,6 +9,15 @@ CREATE TABLE IF NOT EXISTS items (
       description VARCHAR(1000) NOT NULL,
       img_path VARCHAR(500),
       price BIGINT NOT NULL);
+
+CREATE TABLE IF NOT EXISTS cart_items (
+      id BIGSERIAL PRIMARY KEY,
+      session_id VARCHAR(64) NOT NULL,
+      item_id BIGINT NOT NULL,
+      quantity INT NOT NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT uq_cart_items_session_item UNIQUE (session_id, item_id)
+);
 
 CREATE TABLE IF NOT EXISTS orders (
       id BIGSERIAL PRIMARY KEY,

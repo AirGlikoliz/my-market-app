@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.service.CartService;
 import ru.yandex.practicum.mymarket.service.OrderService;
@@ -46,18 +48,20 @@ public class OrderController {
     }
 
     @PostMapping("/buy")
-    public Mono<String> createOrder() {
+    public Mono<String> createOrder(ServerWebExchange exchange) {
         log.info("POST /buy - creating order from cart");
 
-        return cartService.getCartItems()
+        return exchange.getSession()
+            .map(WebSession::getId)
+            .flatMap(sessionId -> cartService.getCartItems(sessionId)
                 .collectList()
                 .flatMap(cartItems -> {
                     if (cartItems.isEmpty()) {
                         log.warn("Cannot create order: cart is empty");
                         return Mono.just("redirect:/cart");
                     }
-                    return orderService.createOrderFromCart()
+                    return orderService.createOrderFromCart(sessionId)
                             .map(order -> "redirect:/orders/" + order.id() + "?newOrder=true");
-                });
+                }));
     }
 }

@@ -28,14 +28,14 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public Mono<OrderDto> createOrderFromCart() {
-        log.info("Creating order from cart");
+    public Mono<OrderDto> createOrderFromCart(String sessionId) {
+        log.info("Creating order from cart, session {}", sessionId);
 
-        return cartService.getCartItems()
+        return cartService.getCartItems(sessionId)
             .collectList()
             .flatMap(cartItems -> {
                 if (cartItems.isEmpty()) return Mono.error(new IllegalArgumentException("Cannot create empty order"));
-                return cartService.getTotalPrice()
+                return cartService.getTotalPrice(sessionId)
                     .flatMap(totalSum -> {
                         Order order = Order.builder().totalSum(totalSum).orderDate(LocalDateTime.now()).build();
                         return orderRepository.save(order)
@@ -51,7 +51,7 @@ public class OrderServiceImpl implements OrderService {
                                     .collect(Collectors.toList());
                                 return orderItemRepository.saveAll(orderItems)
                                     .collectList()
-                                    .then(cartService.clearCart())
+                                    .then(cartService.clearCart(sessionId))
                                     .thenReturn(OrderDto.convertToDto(savedOrder, orderItems));
                             });
                     });

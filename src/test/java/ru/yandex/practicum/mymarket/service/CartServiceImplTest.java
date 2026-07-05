@@ -2,27 +2,35 @@ package ru.yandex.practicum.mymarket.service;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import reactor.core.publisher.Flux;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.data.r2dbc.DataR2dbcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 import reactor.test.StepVerifier;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
+import ru.yandex.practicum.mymarket.entity.CartItem;
 import ru.yandex.practicum.mymarket.entity.Item;
+import ru.yandex.practicum.mymarket.repository.CartItemRepository;
+import ru.yandex.practicum.mymarket.repository.ItemRepository;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
+@DataR2dbcTest
+@ActiveProfiles("test")
+@Import({CartServiceImpl.class, ItemServiceImpl.class})
 class CartServiceImplTest {
 
-    @Mock
-    private ItemService itemService;
+    private static final String SESSION_ID = "123";
 
+    @Autowired
+    private ItemRepository itemRepository;
+
+    @Autowired
+    private CartItemRepository cartItemRepository;
+
+    @Autowired
     private CartServiceImpl cartService;
 
     private Item item1;
@@ -30,158 +38,148 @@ class CartServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        cartService = new CartServiceImpl(itemService);
+        cartItemRepository.deleteAll().block();
+        itemRepository.deleteAll().block();
 
-        item1 = Item.builder()
-                .id(1L)
+        item1 = itemRepository.save(Item.builder()
                 .title("Мяч")
                 .description("Футбольный мяч")
                 .imgPath("/images/ball.jpg")
                 .price(2500L)
-                .build();
+                .build()).block();
 
-        item2 = Item.builder()
-                .id(2L)
+        item2 = itemRepository.save(Item.builder()
                 .title("Ракетка")
                 .description("Теннисная ракетка")
                 .imgPath("/images/racket.jpg")
                 .price(4500L)
-                .build();
+                .build()).block();
     }
 
     @Test
-    void addToCart_ShouldAddItem() {
-        // when
-        cartService.increaseQuantity(1L);
+    void increaseQuantity_WhenItemNotInCart_ShouldCreateNewEntry() {
+        StepVerifier.create(cartService.increaseQuantity(SESSION_ID, item1.getId()))
+                .verifyComplete();
 
-        // then
-        Map<Long, Integer> cart = cartService.getCart();
-        assertEquals(1, cart.size());
-        assertEquals(1, cart.get(1L));
+        CartItem saved = cartItemRepository.findBySessionIdAndItemId(SESSION_ID, item1.getId()).block();
+        assertNotNull(saved);
+        assertEquals(SESSION_ID, saved.getSessionId());
+        assertEquals(item1.getId(), saved.getItemId());
+        assertEquals(1, saved.getQuantity());
     }
 
     @Test
-    void addToCart_ShouldIncreaseQuantity() {
-        // given
-        cartService.increaseQuantity(1L);
-        cartService.increaseQuantity(1L);
+    void increaseQuantity_WhenItemAlreadyInCart_ShouldIncrementQuantity() {
+        cartService.increaseQuantity(SESSION_ID, item1.getId()).block();
 
-        // when
-        Map<Long, Integer> cart = cartService.getCart();
+        StepVerifier.create(cartService.increaseQuantity(SESSION_ID, item1.getId()))
+                .verifyComplete();
 
-        // then
-        assertEquals(1, cart.size());
-        assertEquals(2, cart.get(1L));
+        CartItem saved = cartItemRepository.findBySessionIdAndItemId(SESSION_ID, item1.getId()).block();
+        assertNotNull(saved);
+        assertEquals(2, saved.getQuantity());
     }
 
     @Test
-    void removeFromCart_ShouldRemoveItem() {
-        // given
-        cartService.increaseQuantity(1L);
-        cartService.increaseQuantity(2L);
+    void removeFromCart_ShouldDeleteEntry() {
+        cartService.increaseQuantity(SESSION_ID, item1.getId()).block();
 
-        // when
-        cartService.removeFromCart(1L);
+        StepVerifier.create(cartService.removeFromCart(SESSION_ID, item1.getId()))
+                .verifyComplete();
 
-        // then
-        Map<Long, Integer> cart = cartService.getCart();
-        assertEquals(1, cart.size());
-        assertFalse(cart.containsKey(1L));
-        assertTrue(cart.containsKey(2L));
+        CartItem removed = cartItemRepository.findBySessionIdAndItemId(SESSION_ID, item1.getId()).block();
+        assertNull(removed);
     }
 
     @Test
-    void removeFromCart_WhenItemNotExists_ShouldDoNothing() {
-        // when
-        cartService.removeFromCart(999L);
+    void decreaseQuantity_WhenCountGreaterThanOne_ShouldDecreaseCount() {
+        cartService.increaseQuantity(SESSION_ID, item1.getId()).block();
+        cartService.increaseQuantity(SESSION_ID, item1.getId()).block();
 
-        // then
-        Map<Long, Integer> cart = cartService.getCart();
-        assertTrue(cart.isEmpty());
-    }
+        StepVerifier.create(cartService.decreaseQuantity(SESSION_ID, item1.getId()))
+                .verifyComplete();
 
-    @Test
-    void decreaseQuantity_ShouldDecreaseCount() {
-        // given
-        cartService.increaseQuantity(1L);
-        cartService.increaseQuantity(1L);
-
-        // when
-        cartService.decreaseQuantity(1L);
-
-        // then
-        Map<Long, Integer> cart = cartService.getCart();
-        assertEquals(1, cart.get(1L));
+        CartItem saved = cartItemRepository.findBySessionIdAndItemId(SESSION_ID, item1.getId()).block();
+        assertNotNull(saved);
+        assertEquals(1, saved.getQuantity());
     }
 
     @Test
     void decreaseQuantity_WhenCountIsOne_ShouldRemoveItem() {
-        // given
-        cartService.increaseQuantity(1L);
+        cartService.increaseQuantity(SESSION_ID, item1.getId()).block();
 
-        // when
-        cartService.decreaseQuantity(1L);
+        StepVerifier.create(cartService.decreaseQuantity(SESSION_ID, item1.getId()))
+                .verifyComplete();
 
-        // then
-        Map<Long, Integer> cart = cartService.getCart();
+        CartItem removed = cartItemRepository.findBySessionIdAndItemId(SESSION_ID, item1.getId()).block();
+        assertNull(removed);
+    }
+
+    @Test
+    void decreaseQuantity_WhenItemNotInCart_ShouldDoNothing() {
+        StepVerifier.create(cartService.decreaseQuantity(SESSION_ID, 999L))
+                .verifyComplete();
+
+        List<CartItem> cart = cartItemRepository.findBySessionId(SESSION_ID).collectList().block();
+        assertNotNull(cart);
         assertTrue(cart.isEmpty());
     }
 
     @Test
     void clearCart_ShouldRemoveAllItems() {
-        // given
-        cartService.increaseQuantity(1L);
-        cartService.increaseQuantity(2L);
+        cartService.increaseQuantity(SESSION_ID, item1.getId()).block();
+        cartService.increaseQuantity(SESSION_ID, item2.getId()).block();
 
-        // when / then
-        StepVerifier.create(cartService.clearCart())
+        StepVerifier.create(cartService.clearCart(SESSION_ID))
                 .verifyComplete();
 
-        Map<Long, Integer> cart = cartService.getCart();
+        List<CartItem> cart = cartItemRepository.findBySessionId(SESSION_ID).collectList().block();
+        assertNotNull(cart);
         assertTrue(cart.isEmpty());
     }
 
     @Test
-    void getCart_ShouldReturnCopyNotOriginal() {
-        // given
-        cartService.increaseQuantity(1L);
-        Map<Long, Integer> cartCopy = cartService.getCart();
+    void getCart_ShouldReturnMapOfItemIdToQuantity() {
+        cartService.increaseQuantity(SESSION_ID, item1.getId()).block();
+        cartService.increaseQuantity(SESSION_ID, item1.getId()).block();
+        cartService.increaseQuantity(SESSION_ID, item2.getId()).block();
 
-        // when
-        cartCopy.remove(1L);
+        StepVerifier.create(cartService.getCart(SESSION_ID))
+                .assertNext(cart -> {
+                    assertEquals(2, cart.size());
+                    assertEquals(2, cart.get(item1.getId()));
+                    assertEquals(1, cart.get(item2.getId()));
+                })
+                .verifyComplete();
+    }
 
-        // then
-        Map<Long, Integer> actualCart = cartService.getCart();
-        assertEquals(1, actualCart.size());
-        assertTrue(actualCart.containsKey(1L));
+    @Test
+    void getCart_WhenEmpty_ShouldReturnEmptyMap() {
+        StepVerifier.create(cartService.getCart(SESSION_ID))
+                .assertNext(cart -> assertTrue(cart.isEmpty()))
+                .verifyComplete();
     }
 
     @Test
     void getCartItems_ShouldReturnItemsWithCounts() {
-        // given
-        cartService.increaseQuantity(1L);
-        cartService.increaseQuantity(1L);
-        cartService.increaseQuantity(2L);
+        cartService.increaseQuantity(SESSION_ID, item1.getId()).block();
+        cartService.increaseQuantity(SESSION_ID, item1.getId()).block();
+        cartService.increaseQuantity(SESSION_ID, item2.getId()).block();
 
-        when(itemService.getItemEntitiesByIds(Set.of(1L, 2L)))
-                .thenReturn(Flux.just(item1, item2));
-
-        // when
-        List<ItemDto> cartItems = cartService.getCartItems()
+        List<ItemDto> cartItems = cartService.getCartItems(SESSION_ID)
                 .collectList()
                 .block();
 
-        // then
         assertNotNull(cartItems);
         assertEquals(2, cartItems.size());
 
         ItemDto itemDto1 = cartItems.stream()
-                .filter(i -> i.id().equals(1L))
+                .filter(i -> i.id().equals(item1.getId()))
                 .findFirst()
                 .orElseThrow();
 
         ItemDto itemDto2 = cartItems.stream()
-                .filter(i -> i.id().equals(2L))
+                .filter(i -> i.id().equals(item2.getId()))
                 .findFirst()
                 .orElseThrow();
 
@@ -192,34 +190,93 @@ class CartServiceImplTest {
         assertEquals("Ракетка", itemDto2.title());
         assertEquals(1, itemDto2.count());
         assertEquals(4500L, itemDto2.price());
-
-        verify(itemService, times(1)).getItemEntitiesByIds(Set.of(1L, 2L));
     }
 
     @Test
     void getCartItems_WhenCartEmpty_ShouldReturnEmptyFlux() {
-        // when / then
-        StepVerifier.create(cartService.getCartItems())
+        StepVerifier.create(cartService.getCartItems(SESSION_ID))
                 .verifyComplete();
-
-        verify(itemService, never()).getItemEntitiesByIds(anySet());
     }
 
     @Test
     void getTotalPrice_ShouldCalculateCorrectly() {
-        // given
-        cartService.increaseQuantity(1L);
-        cartService.increaseQuantity(1L);
-        cartService.increaseQuantity(2L);
+        cartService.increaseQuantity(SESSION_ID, item1.getId()).block();
+        cartService.increaseQuantity(SESSION_ID, item1.getId()).block();
+        cartService.increaseQuantity(SESSION_ID, item2.getId()).block();
 
-        when(itemService.getItemEntitiesByIds(Set.of(1L, 2L)))
-                .thenReturn(Flux.just(item1, item2));
-
-        // when / then
-        StepVerifier.create(cartService.getTotalPrice())
+        StepVerifier.create(cartService.getTotalPrice(SESSION_ID))
                 .expectNext(9500L)
                 .verifyComplete();
+    }
 
-        verify(itemService, times(1)).getItemEntitiesByIds(Set.of(1L, 2L));
+    @Test
+    void getTotalPrice_WhenCartEmpty_ShouldReturnZero() {
+        StepVerifier.create(cartService.getTotalPrice(SESSION_ID))
+                .expectNext(0L)
+                .verifyComplete();
+    }
+
+    @Test
+    void applyAction_WithPlus_ShouldIncreaseQuantity() {
+        StepVerifier.create(cartService.applyAction(SESSION_ID, item1.getId(), "PLUS"))
+                .verifyComplete();
+
+        CartItem saved = cartItemRepository.findBySessionIdAndItemId(SESSION_ID, item1.getId()).block();
+        assertNotNull(saved);
+        assertEquals(1, saved.getQuantity());
+    }
+
+    @Test
+    void applyAction_WithMinus_ShouldDecreaseQuantity() {
+        cartService.increaseQuantity(SESSION_ID, item1.getId()).block();
+        cartService.increaseQuantity(SESSION_ID, item1.getId()).block();
+
+        StepVerifier.create(cartService.applyAction(SESSION_ID, item1.getId(), "MINUS"))
+                .verifyComplete();
+
+        CartItem saved = cartItemRepository.findBySessionIdAndItemId(SESSION_ID, item1.getId()).block();
+        assertNotNull(saved);
+        assertEquals(1, saved.getQuantity());
+    }
+
+    @Test
+    void applyAction_WithDelete_ShouldRemoveFromCart() {
+        cartService.increaseQuantity(SESSION_ID, item1.getId()).block();
+
+        StepVerifier.create(cartService.applyAction(SESSION_ID, item1.getId(), "DELETE"))
+                .verifyComplete();
+
+        CartItem removed = cartItemRepository.findBySessionIdAndItemId(SESSION_ID, item1.getId()).block();
+        assertNull(removed);
+    }
+
+    @Test
+    void applyAction_WithLowercaseAction_ShouldStillWork() {
+        StepVerifier.create(cartService.applyAction(SESSION_ID, item1.getId(), "plus"))
+                .verifyComplete();
+
+        CartItem saved = cartItemRepository.findBySessionIdAndItemId(SESSION_ID, item1.getId()).block();
+        assertNotNull(saved);
+        assertEquals(1, saved.getQuantity());
+    }
+
+    @Test
+    void applyAction_WithUnknownAction_ShouldDoNothing() {
+        StepVerifier.create(cartService.applyAction(SESSION_ID, item1.getId(), "UNKNOWN"))
+                .verifyComplete();
+
+        List<CartItem> cart = cartItemRepository.findBySessionId(SESSION_ID).collectList().block();
+        assertNotNull(cart);
+        assertTrue(cart.isEmpty());
+    }
+
+    @Test
+    void applyAction_WithNullAction_ShouldDoNothing() {
+        StepVerifier.create(cartService.applyAction(SESSION_ID, item1.getId(), null))
+                .verifyComplete();
+
+        List<CartItem> cart = cartItemRepository.findBySessionId(SESSION_ID).collectList().block();
+        assertNotNull(cart);
+        assertTrue(cart.isEmpty());
     }
 }

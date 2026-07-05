@@ -2,9 +2,12 @@ package ru.yandex.practicum.mymarket.controller;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.controller.util.ControllerUtil;
 import ru.yandex.practicum.mymarket.dto.ItemActionRequest;
@@ -27,16 +30,23 @@ public class ItemController {
 
     @GetMapping({"/", "/items"})
     public Mono<String> getItems(@RequestParam(required = false) String search,
-                     @RequestParam(required = false, defaultValue = "NO") String sort,
-                     @RequestParam(required = false, defaultValue = "1") int pageNumber,
-                     @RequestParam(required = false, defaultValue = "5") int pageSize,
-                     Model model) {
+                                 @RequestParam(required = false, defaultValue = "NO") String sort,
+                                 @RequestParam(required = false, defaultValue = "1") int pageNumber,
+                                 @RequestParam(required = false, defaultValue = "5") int pageSize,
+                                 Model model,
+                                 ServerWebExchange exchange) {
 
         log.info("GET /items - search: {}, sort: {}, page: {}, size: {}", search, sort, pageNumber, pageSize);
 
-        return itemService.getItems(search, sort, pageNumber, pageSize)
-            .map(page -> {
-                List<ItemDto> itemsWithCount = ControllerUtil.enrichWithCartCounts(page.getContent(), cartService.getCart());
+        return exchange.getSession()
+            .map(WebSession::getId)
+            .flatMap(sessionId -> itemService.getItems(search, sort, pageNumber, pageSize)
+                    .zipWith(cartService.getCart(sessionId)))
+            .map(tuple -> {
+                Page<ItemDto> page = tuple.getT1();
+                Map<Long, Integer> cart = tuple.getT2();
+
+                List<ItemDto> itemsWithCount = ControllerUtil.enrichWithCartCounts(page.getContent(), cart);
 
                 model.addAttribute("items", itemsWithCount);
                 model.addAttribute("search", search != null ? search : "");
@@ -54,12 +64,16 @@ public class ItemController {
     }
 
     @GetMapping("/items/{id}")
-    public Mono<String> getItem(@PathVariable Long id, Model model) {
+    public Mono<String> getItem(@PathVariable Long id, Model model, ServerWebExchange exchange) {
         log.info("GET /items/{}", id);
 
-        return itemService.getItemById(id)
-            .doOnNext(item -> {
-                Map<Long, Integer> cart = cartService.getCart();
+        return exchange.getSession()
+            .map(session -> session.getId())
+            .flatMap(sessionId -> itemService.getItemById(id)
+                    .zipWith(cartService.getCart(sessionId)))
+            .doOnNext(tuple -> {
+                ItemDto item = tuple.getT1();
+                Map<Long, Integer> cart = tuple.getT2();
                 int count = cart.getOrDefault(id, 0);
                 model.addAttribute("item", ItemDto.builder()
                     .id(item.id())
@@ -74,35 +88,27 @@ public class ItemController {
     }
 
     @PostMapping("/items")
-    public Mono<String> updateCartFromItems(@ModelAttribute ItemActionRequest request) {
+    public Mono<String> updateCartFromItems(@ModelAttribute ItemActionRequest request, ServerWebExchange exchange) {
 
         log.info("POST /items - id: {}, action: {}, search: {}, sort: {}, page: {}, size: {}",
                 request.id(), request.action(), request.search(),
                 request.sort(), request.pageNumber(), request.pageSize());
 
-        String action = request.action() != null ? request.action().toUpperCase() : "";
-        switch (action) {
-            case "PLUS" -> cartService.increaseQuantity(request.id());
-            case "MINUS" -> cartService.decreaseQuantity(request.id());
-            default -> log.warn("Unknown action: {}", request.action());
-        }
-
-        return Mono.just(String.format("redirect:/items?search=%s&sort=%s&pageNumber=%d&pageSize=%d",
+        return exchange.getSession()
+            .map(WebSession::getId)
+            .flatMap(sessionId -> cartService.applyAction(sessionId, request.id(), request.action()))
+            .thenReturn(String.format("redirect:/items?search=%s&sort=%s&pageNumber=%d&pageSize=%d",
                 request.search(), request.sort(), request.pageNumber(), request.pageSize()));
     }
 
     @PostMapping("/items/{id}")
-    public Mono<String> updateCartFromItem(@PathVariable Long id, @ModelAttribute ItemActionRequest request) {
+    public Mono<String> updateCartFromItem(@PathVariable Long id, @ModelAttribute ItemActionRequest request, ServerWebExchange exchange) {
 
         log.info("POST /items/{} - action: {}", id, request.action());
 
-        String action = request.action() != null ? request.action().toUpperCase() : "";
-        switch (action) {
-            case "PLUS" -> cartService.increaseQuantity(id);
-            case "MINUS" -> cartService.decreaseQuantity(id);
-            default -> log.warn("Unknown action: {}", request.action());
-        }
-
-        return Mono.just("redirect:/items/" + id);
+        return exchange.getSession()
+                .map(WebSession::getId)
+                .flatMap(sessionId -> cartService.applyAction(sessionId, id, request.action()))
+                .thenReturn("redirect:/items/" + id);
     }
 }
