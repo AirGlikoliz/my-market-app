@@ -35,7 +35,8 @@ public class CartController {
     public Mono<String> updateCartItems(@RequestParam Long id, @RequestParam String action) {
         log.info("POST /cart/items - id: {}, action: {}", id, action);
 
-        switch (action.toUpperCase()) {
+        String actionValid = action != null ? action.toUpperCase() : "";
+        switch (actionValid) {
             case "PLUS" -> cartService.increaseQuantity(id);
             case "MINUS" -> cartService.decreaseQuantity(id);
             case "DELETE" -> cartService.removeFromCart(id);

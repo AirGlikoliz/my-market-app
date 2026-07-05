@@ -80,7 +80,8 @@ public class ItemController {
                 request.id(), request.action(), request.search(),
                 request.sort(), request.pageNumber(), request.pageSize());
 
-        switch (request.action().toUpperCase()) {
+        String action = request.action() != null ? request.action().toUpperCase() : "";
+        switch (action) {
             case "PLUS" -> cartService.increaseQuantity(request.id());
             case "MINUS" -> cartService.decreaseQuantity(request.id());
             default -> log.warn("Unknown action: {}", request.action());
@@ -95,7 +96,8 @@ public class ItemController {
 
         log.info("POST /items/{} - action: {}", id, request.action());
 
-        switch (request.action().toUpperCase()) {
+        String action = request.action() != null ? request.action().toUpperCase() : "";
+        switch (action) {
             case "PLUS" -> cartService.increaseQuantity(id);
             case "MINUS" -> cartService.decreaseQuantity(id);
             default -> log.warn("Unknown action: {}", request.action());
