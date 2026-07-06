@@ -5,13 +5,14 @@
 ## Технологии
 
 - **Java 21** — основной язык
-- **Spring Boot 3.2** — автоконфигурация, встроенный Tomcat
-- **Spring MVC + Thymeleaf** — контроллеры и шаблоны страниц
-- **Spring Data JPA** — работа с БД
-- **PostgreSQL** — основная БД
-- **H2** — тесты
+- **Spring Boot 3.2** — автоконфигурация, встроенный Netty
+- **Spring WebFlux + Thymeleaf** — реактивные контроллеры и шаблоны страниц
+- **Project Reactor** (Mono/Flux) — реактивная обработка данных
+- **Spring Data R2DBC** — реактивная работа с БД
+- **PostgreSQL** — основная БД (через R2DBC-драйвер)
+- **H2 (R2DBC)** — тесты
 - **Lombok** — сокращение кода
-- **JUnit 5 + Mockito** — тестирование
+- **JUnit 5 + Mockito + Reactor Test** — тестирование
 - **Gradle** — сборка
 
 ## Функциональность
@@ -25,7 +26,7 @@
 ## Требования
 
 - Java 21 (JDK 21 или выше)
-- PostgreSQL 15.x или выше
+- PostgreSQL 15.x или выше (с поддержкой R2DBC)
 - Gradle 8.x
 
 ## Сборка
