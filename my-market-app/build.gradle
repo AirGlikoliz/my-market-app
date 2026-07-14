@@ -1,0 +1,92 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.2.5'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.openapi.generator' version '7.6.0'
+}
+
+java {
+    sourceCompatibility = '21'
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+def generatedSourcesDir = "$buildDir/generated/openapi"
+
+dependencies {
+
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+
+    implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
+    implementation 'org.postgresql:r2dbc-postgresql'
+
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
+
+    implementation 'org.openapitools:jackson-databind-nullable:0.2.6'
+    implementation 'io.swagger.core.v3:swagger-annotations:2.2.21'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'io.projectreactor:reactor-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webflux'
+
+    testImplementation 'io.r2dbc:r2dbc-h2'
+    testRuntimeOnly 'com.h2database:h2'
+
+    testImplementation 'com.github.codemonstur:embedded-redis:1.4.3'
+}
+
+openApiGenerate {
+    generatorName = 'java'
+    inputSpec = "$projectDir/../payment-service/src/main/resources/openapi/payment-api.yaml".toString()
+    outputDir = generatedSourcesDir
+    library = 'webclient'
+    apiPackage = 'ru.yandex.practicum.mymarket.payment.client.api'
+    modelPackage = 'ru.yandex.practicum.mymarket.payment.client.model'
+    invokerPackage = 'ru.yandex.practicum.mymarket.payment.client.invoker'
+    configOptions = [
+            reactive        : 'true',
+            useJakartaEe    : 'true',
+            dateLibrary     : 'java8',
+            serializationLibrary: 'jackson',
+            openApiNullable : 'true'
+    ]
+    globalProperties = [
+            modelDocs: 'false'
+    ]
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir "$generatedSourcesDir/src/main/java"
+        }
+    }
+}
+
+compileJava.dependsOn tasks.openApiGenerate
+
+tasks.named('test') {
+    useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+    }
+}
+
+bootJar {
+    archiveFileName = 'my-market-app.jar'
+}
