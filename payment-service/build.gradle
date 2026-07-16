@@ -1,0 +1,79 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.2.5'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.openapi.generator' version '7.6.0'
+}
+
+java {
+    sourceCompatibility = '21'
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+def generatedSourcesDir = "$buildDir/generated/openapi"
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    implementation 'org.openapitools:jackson-databind-nullable:0.2.6'
+    implementation 'io.swagger.core.v3:swagger-annotations:2.2.21'
+
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'io.projectreactor:reactor-test'
+}
+
+openApiGenerate {
+    generatorName = 'spring'
+    inputSpec = "$projectDir/src/main/resources/openapi/payment-api.yaml".toString()
+    outputDir = generatedSourcesDir
+    apiPackage = 'ru.yandex.practicum.paymentservice.api'
+    modelPackage = 'ru.yandex.practicum.paymentservice.model'
+    invokerPackage = 'ru.yandex.practicum.paymentservice.invoker'
+    configOptions = [
+            interfaceOnly     : 'true',
+            useTags           : 'true',
+            reactive          : 'true',
+            useSpringBoot3    : 'true',
+            skipDefaultInterface: 'true',
+            dateLibrary       : 'java8',
+            useJakartaEe      : 'true'
+    ]
+    globalProperties = [
+            models   : '',
+            apis     : '',
+            modelDocs: 'false'
+    ]
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir "$generatedSourcesDir/src/main/java"
+        }
+    }
+}
+
+compileJava.dependsOn tasks.openApiGenerate
+
+tasks.named('test') {
+    useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+    }
+}
+
+bootJar {
+    archiveFileName = 'payment-service.jar'
+}

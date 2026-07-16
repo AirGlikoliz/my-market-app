@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: market_db
+      POSTGRES_USER: gpay
+      POSTGRES_PASSWORD: gpay
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./my-market-app/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gpay -d market_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: payment-service/Dockerfile
+    environment:
+      PAYMENT_INITIAL_BALANCE: "100000"
+    ports:
+      - "8081:8081"
+
+  my-market-app:
+    build:
+      context: .
+      dockerfile: my-market-app/Dockerfile
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: market_db
+      DB_USERNAME: gpay
+      DB_PASSWORD: gpay
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      PAYMENT_SERVICE_URL: http://payment-service:8081
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      payment-service:
+        condition: service_started
