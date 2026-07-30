@@ -1,5 +1,6 @@
 package ru.yandex.practicum.mymarket.controller;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
@@ -16,11 +17,15 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockUser;
 
 @WebFluxTest(CartController.class)
 class CartControllerTest {
 
     @Autowired
+    private WebTestClient client;
+
     private WebTestClient webTestClient;
 
     @MockBean
@@ -28,6 +33,11 @@ class CartControllerTest {
 
     @MockBean
     private PaymentService paymentService;
+
+    @BeforeEach
+    void setUp() {
+        webTestClient = client.mutateWith(mockUser("buyer1")).mutateWith(csrf());
+    }
 
     @Test
     void getCartItems_ShouldReturnCartPage1() {
@@ -39,7 +49,7 @@ class CartControllerTest {
 
         when(cartService.getCartItems(anyString())).thenReturn(Flux.fromIterable(cartItems));
         when(cartService.getTotalPrice(anyString())).thenReturn(Mono.just(total));
-        when(paymentService.checkBalance(total)).thenReturn(Mono.just(
+        when(paymentService.checkBalance(anyString(), eq(total))).thenReturn(Mono.just(
                 PaymentStatus.builder().available(true).sufficientFunds(true).balance(50000L).build()));
 
         webTestClient.get()
@@ -67,7 +77,7 @@ class CartControllerTest {
                 .exchange()
                 .expectStatus().isOk();
 
-        verify(paymentService, never()).checkBalance(any());
+        verify(paymentService, never()).checkBalance(any(), any());
     }
 
     @Test
@@ -77,7 +87,7 @@ class CartControllerTest {
 
         when(cartService.getCartItems(anyString())).thenReturn(Flux.fromIterable(cartItems));
         when(cartService.getTotalPrice(anyString())).thenReturn(Mono.just(total));
-        when(paymentService.checkBalance(total)).thenReturn(Mono.just(
+        when(paymentService.checkBalance(anyString(), eq(total))).thenReturn(Mono.just(
                 PaymentStatus.builder().available(true).sufficientFunds(false).balance(1000L).build()));
 
         webTestClient.get()
@@ -99,7 +109,7 @@ class CartControllerTest {
 
         when(cartService.getCartItems(anyString())).thenReturn(Flux.fromIterable(cartItems));
         when(cartService.getTotalPrice(anyString())).thenReturn(Mono.just(total));
-        when(paymentService.checkBalance(total)).thenReturn(Mono.just(
+        when(paymentService.checkBalance(anyString(), eq(total))).thenReturn(Mono.just(
                 PaymentStatus.builder().available(false).sufficientFunds(false).message("Сервис платежей недоступен").build()));
 
         webTestClient.get()

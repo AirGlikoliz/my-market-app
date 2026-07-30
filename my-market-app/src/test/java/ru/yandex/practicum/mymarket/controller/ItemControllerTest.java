@@ -1,5 +1,6 @@
 package ru.yandex.practicum.mymarket.controller;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
@@ -17,11 +18,15 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockUser;
 
 @WebFluxTest(ItemController.class)
 class ItemControllerTest {
 
     @Autowired
+    private WebTestClient client;
+
     private WebTestClient webTestClient;
 
     @MockBean
@@ -29,6 +34,11 @@ class ItemControllerTest {
 
     @MockBean
     private CartService cartService;
+
+    @BeforeEach
+    void setUp() {
+        webTestClient = client.mutateWith(mockUser("buyer1")).mutateWith(csrf());
+    }
 
     @Test
     void getItems_ShouldReturnItemsPage() {

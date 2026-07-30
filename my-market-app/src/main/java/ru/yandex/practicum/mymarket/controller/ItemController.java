@@ -3,11 +3,10 @@ package ru.yandex.practicum.mymarket.controller;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ServerWebExchange;
-import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.controller.util.ControllerUtil;
 import ru.yandex.practicum.mymarket.dto.ItemActionRequest;
@@ -18,6 +17,8 @@ import ru.yandex.practicum.mymarket.service.ItemService;
 
 import java.util.List;
 import java.util.Map;
+
+import static ru.yandex.practicum.mymarket.controller.util.ControllerUtil.isAuthenticated;
 
 @Controller
 @RequiredArgsConstructor
@@ -34,14 +35,20 @@ public class ItemController {
                                  @RequestParam(required = false, defaultValue = "1") int pageNumber,
                                  @RequestParam(required = false, defaultValue = "5") int pageSize,
                                  Model model,
-                                 ServerWebExchange exchange) {
+                                 Authentication authentication) {
 
         log.info("GET /items - search: {}, sort: {}, page: {}, size: {}", search, sort, pageNumber, pageSize);
 
-        return exchange.getSession()
-            .map(WebSession::getId)
-            .flatMap(sessionId -> itemService.getItems(search, sort, pageNumber, pageSize)
-                    .zipWith(cartService.getCart(sessionId)))
+        boolean authenticated = isAuthenticated(authentication);
+        Mono<Map<Long, Integer>> cartMono = authenticated
+                ? cartService.getCart(authentication.getName())
+                : Mono.just(Map.of());
+
+        model.addAttribute("isAuthenticated", authenticated);
+        model.addAttribute("username", authenticated ? authentication.getName() : null);
+
+        return itemService.getItems(search, sort, pageNumber, pageSize)
+            .zipWith(cartMono)
             .map(tuple -> {
                 Page<ItemDto> page = tuple.getT1();
                 Map<Long, Integer> cart = tuple.getT2();
@@ -64,13 +71,19 @@ public class ItemController {
     }
 
     @GetMapping("/items/{id}")
-    public Mono<String> getItem(@PathVariable Long id, Model model, ServerWebExchange exchange) {
+    public Mono<String> getItem(@PathVariable Long id, Model model, Authentication authentication) {
         log.info("GET /items/{}", id);
 
-        return exchange.getSession()
-            .map(WebSession::getId)
-            .flatMap(sessionId -> itemService.getItemById(id)
-                    .zipWith(cartService.getCart(sessionId)))
+        boolean authenticated = isAuthenticated(authentication);
+        Mono<Map<Long, Integer>> cartMono = authenticated
+                ? cartService.getCart(authentication.getName())
+                : Mono.just(Map.of());
+
+        model.addAttribute("isAuthenticated", authenticated);
+        model.addAttribute("username", authenticated ? authentication.getName() : null);
+
+        return itemService.getItemById(id)
+            .zipWith(cartMono)
             .doOnNext(tuple -> {
                 ItemDto item = tuple.getT1();
                 Map<Long, Integer> cart = tuple.getT2();
@@ -88,27 +101,23 @@ public class ItemController {
     }
 
     @PostMapping("/items")
-    public Mono<String> updateCartFromItems(@ModelAttribute ItemActionRequest request, ServerWebExchange exchange) {
+    public Mono<String> updateCartFromItems(@ModelAttribute ItemActionRequest request, Authentication authentication) {
 
         log.info("POST /items - id: {}, action: {}, search: {}, sort: {}, page: {}, size: {}",
                 request.id(), request.action(), request.search(),
                 request.sort(), request.pageNumber(), request.pageSize());
 
-        return exchange.getSession()
-            .map(WebSession::getId)
-            .flatMap(sessionId -> cartService.applyAction(sessionId, request.id(), request.action()))
+        return cartService.applyAction(authentication.getName(), request.id(), request.action())
             .thenReturn(String.format("redirect:/items?search=%s&sort=%s&pageNumber=%d&pageSize=%d",
                 request.search(), request.sort(), request.pageNumber(), request.pageSize()));
     }
 
     @PostMapping("/items/{id}")
-    public Mono<String> updateCartFromItem(@PathVariable Long id, @ModelAttribute ItemActionRequest request, ServerWebExchange exchange) {
+    public Mono<String> updateCartFromItem(@PathVariable Long id, @ModelAttribute ItemActionRequest request, Authentication authentication) {
 
         log.info("POST /items/{} - action: {}", id, request.action());
 
-        return exchange.getSession()
-                .map(WebSession::getId)
-                .flatMap(sessionId -> cartService.applyAction(sessionId, id, request.action()))
+        return cartService.applyAction(authentication.getName(), id, request.action())
                 .thenReturn("redirect:/items/" + id);
     }
 }

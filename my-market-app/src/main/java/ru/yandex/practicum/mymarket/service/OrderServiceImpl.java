@@ -28,16 +28,20 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public Mono<OrderDto> createOrderFromCart(String sessionId) {
-        log.info("Creating order from cart, session {}", sessionId);
+    public Mono<OrderDto> createOrderFromCart(String username) {
+        log.info("Creating order from cart, user {}", username);
 
-        return cartService.getCartItems(sessionId)
+        return cartService.getCartItems(username)
             .collectList()
             .flatMap(cartItems -> {
                 if (cartItems.isEmpty()) return Mono.error(new IllegalArgumentException("Cannot create empty order"));
-                return cartService.getTotalPrice(sessionId)
+                return cartService.getTotalPrice(username)
                     .flatMap(totalSum -> {
-                        Order order = Order.builder().totalSum(totalSum).orderDate(LocalDateTime.now()).build();
+                        Order order = Order.builder()
+                            .username(username)
+                            .totalSum(totalSum)
+                            .orderDate(LocalDateTime.now())
+                            .build();
                         return orderRepository.save(order)
                             .flatMap(savedOrder -> {
                                 List<OrderItem> orderItems = cartItems.stream()
@@ -51,7 +55,7 @@ public class OrderServiceImpl implements OrderService {
                                     .collect(Collectors.toList());
                                 return orderItemRepository.saveAll(orderItems)
                                     .collectList()
-                                    .then(cartService.clearCart(sessionId))
+                                    .then(cartService.clearCart(username))
                                     .thenReturn(OrderDto.convertToDto(savedOrder, orderItems));
                             });
                     });
@@ -59,10 +63,10 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public Mono<OrderDto> getOrderById(Long id) {
-        log.info("Fetching order by id: {}", id);
+    public Mono<OrderDto> getOrderById(Long id, String username) {
+        log.info("Fetching order by id: {}, user {}", id, username);
 
-        return orderRepository.findById(id)
+        return orderRepository.findByIdAndUsername(id, username)
             .switchIfEmpty(Mono.error(new OrderNotFoundException("Order not found with id: " + id)))
             .flatMap(order -> orderItemRepository.findAllByOrderId(order.getId())
                 .collectList()
@@ -70,9 +74,9 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public Flux<OrderDto> getAllOrders() {
-        log.info("Fetching all orders");
+    public Flux<OrderDto> getAllOrders(String username) {
+        log.info("Fetching all orders, user {}", username);
 
-        return orderRepository.findAllOrderByDateDesc().map(OrderDto::convertToDto);
+        return orderRepository.findAllByUsernameOrderByDateDesc(username).map(OrderDto::convertToDto);
     }
 }

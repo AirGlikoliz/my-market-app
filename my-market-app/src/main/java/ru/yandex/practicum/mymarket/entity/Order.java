@@ -19,6 +19,8 @@ public class Order {
     @Id
     private Long id;
 
+    private String username;
+
     private LocalDateTime orderDate;
 
     private Long totalSum;

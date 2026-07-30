@@ -6,9 +6,9 @@ import ru.yandex.practicum.mymarket.dto.OrderDto;
 
 public interface OrderService {
 
-    Mono<OrderDto> createOrderFromCart(String sessionId);
+    Mono<OrderDto> createOrderFromCart(String username);
 
-    Mono<OrderDto> getOrderById(Long id);
+    Mono<OrderDto> getOrderById(Long id, String username);
 
-    Flux<OrderDto> getAllOrders();
+    Flux<OrderDto> getAllOrders(String username);
 }

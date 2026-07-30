@@ -4,11 +4,14 @@ import org.springframework.data.r2dbc.repository.Query;
 import org.springframework.data.r2dbc.repository.R2dbcRepository;
 import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.entity.Order;
 
 @Repository
 public interface OrderRepository extends R2dbcRepository<Order, Long> {
 
-    @Query("SELECT * FROM orders ORDER BY order_date DESC")
-    Flux<Order> findAllOrderByDateDesc();
+    @Query("SELECT * FROM orders WHERE username = :username ORDER BY order_date DESC")
+    Flux<Order> findAllByUsernameOrderByDateDesc(String username);
+
+    Mono<Order> findByIdAndUsername(Long id, String username);
 }

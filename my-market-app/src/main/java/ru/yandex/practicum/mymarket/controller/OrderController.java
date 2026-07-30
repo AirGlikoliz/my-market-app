@@ -2,14 +2,13 @@ package ru.yandex.practicum.mymarket.controller;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.server.ServerWebExchange;
-import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.service.CartService;
 import ru.yandex.practicum.mymarket.service.OrderService;
@@ -25,10 +24,12 @@ public class OrderController {
     private final PaymentService paymentService;
 
     @GetMapping("/orders")
-    public Mono<String> getOrders(Model model) {
+    public Mono<String> getOrders(Model model, Authentication authentication) {
         log.info("GET /orders");
 
-        return orderService.getAllOrders()
+        model.addAttribute("username", authentication.getName());
+
+        return orderService.getAllOrders(authentication.getName())
                 .collectList()
                 .doOnNext(orders -> model.addAttribute("orders", orders))
                 .thenReturn("orders");
@@ -37,11 +38,14 @@ public class OrderController {
     @GetMapping("/orders/{id}")
     public Mono<String> getOrder(@PathVariable Long id,
                                  @RequestParam(required = false, defaultValue = "false") boolean newOrder,
-                                 Model model) {
+                                 Model model,
+                                 Authentication authentication) {
 
         log.info("GET /orders/{} - newOrder: {}", id, newOrder);
 
-        return orderService.getOrderById(id)
+        model.addAttribute("username", authentication.getName());
+
+        return orderService.getOrderById(id, authentication.getName())
                 .doOnNext(order -> {
                     model.addAttribute("order", order);
                     model.addAttribute("newOrder", newOrder);
@@ -50,28 +54,28 @@ public class OrderController {
     }
 
     @PostMapping("/buy")
-    public Mono<String> createOrder(ServerWebExchange exchange) {
+    public Mono<String> createOrder(Authentication authentication) {
         log.info("POST /buy - creating order from cart");
 
-        return exchange.getSession()
-            .map(WebSession::getId)
-            .flatMap(sessionId -> cartService.getCartItems(sessionId)
-                .collectList()
-                .zipWith(cartService.getTotalPrice(sessionId))
-                .flatMap(tuple -> {
-                    if (tuple.getT1().isEmpty()) {
-                        log.warn("Cannot create order: cart is empty");
-                        return Mono.just("redirect:/cart/items");
-                    }
-                    return paymentService.pay(tuple.getT2())
-                        .flatMap(paymentResult -> {
-                            if (!paymentResult.success()) {
-                                log.warn("Payment declined: {}", paymentResult.message());
-                                return Mono.just("redirect:/cart/items");
-                            }
-                            return orderService.createOrderFromCart(sessionId)
-                                    .map(order -> "redirect:/orders/" + order.id() + "?newOrder=true");
-                        });
-                }));
+        String username = authentication.getName();
+
+        return cartService.getCartItems(username)
+            .collectList()
+            .zipWith(cartService.getTotalPrice(username))
+            .flatMap(tuple -> {
+                if (tuple.getT1().isEmpty()) {
+                    log.warn("Cannot create order: cart is empty");
+                    return Mono.just("redirect:/cart/items");
+                }
+                return paymentService.pay(username, tuple.getT2())
+                    .flatMap(paymentResult -> {
+                        if (!paymentResult.success()) {
+                            log.warn("Payment declined: {}", paymentResult.message());
+                            return Mono.just("redirect:/cart/items");
+                        }
+                        return orderService.createOrderFromCart(username)
+                                .map(order -> "redirect:/orders/" + order.id() + "?newOrder=true");
+                    });
+            });
     }
 }

@@ -2,3 +2,4 @@ rootProject.name = 'my-market-app-platform'
 
 include 'my-market-app'
 include 'payment-service'
+include 'auth-server'

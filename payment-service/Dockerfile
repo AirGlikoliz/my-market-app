@@ -5,6 +5,7 @@ COPY gradlew gradlew.bat settings.gradle build.gradle ./
 COPY gradle ./gradle
 COPY my-market-app ./my-market-app
 COPY payment-service ./payment-service
+COPY auth-server ./auth-server
 
 RUN ./gradlew :payment-service:build --parallel
 

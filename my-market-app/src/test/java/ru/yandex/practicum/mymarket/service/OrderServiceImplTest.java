@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Import({OrderServiceImpl.class, CartServiceImpl.class, ItemServiceImpl.class})
 class OrderServiceImplTest {
 
-    private static final String SESSION_ID = "test-session";
+    private static final String USERNAME = "buyer1";
 
     @Autowired
     private OrderRepository orderRepository;
@@ -79,18 +79,18 @@ class OrderServiceImplTest {
         Long item1Id = savedItems.get(0).getId();
         Long item2Id = savedItems.get(1).getId();
 
-        cartService.increaseQuantity(SESSION_ID, item1Id).block();
-        cartService.increaseQuantity(SESSION_ID, item1Id).block();
-        cartService.increaseQuantity(SESSION_ID, item2Id).block();
+        cartService.increaseQuantity(USERNAME, item1Id).block();
+        cartService.increaseQuantity(USERNAME, item1Id).block();
+        cartService.increaseQuantity(USERNAME, item2Id).block();
 
-        OrderDto result = orderService.createOrderFromCart(SESSION_ID).block();
+        OrderDto result = orderService.createOrderFromCart(USERNAME).block();
 
         assertNotNull(result);
         assertNotNull(result.id());
         assertEquals(9500L, result.totalSum());
         assertEquals(2, result.items().size());
 
-        assertTrue(cartService.getCartItems(SESSION_ID).collectList().block().isEmpty());
+        assertTrue(cartService.getCartItems(USERNAME).collectList().block().isEmpty());
 
         Order savedOrder = orderRepository.findById(result.id()).block();
         assertNotNull(savedOrder);
@@ -104,7 +104,7 @@ class OrderServiceImplTest {
 
     @Test
     void createOrderFromCart_EmptyCart_ShouldThrowException() {
-        StepVerifier.create(orderService.createOrderFromCart(SESSION_ID))
+        StepVerifier.create(orderService.createOrderFromCart(USERNAME))
                 .expectErrorMatches(ex -> ex instanceof IllegalArgumentException
                         && ex.getMessage().equals("Cannot create empty order"))
                 .verify();
@@ -116,9 +116,9 @@ class OrderServiceImplTest {
     void createOrderFromCart_WithSingleItem_Success() {
         Long itemId = savedItems.get(0).getId();
 
-        cartService.increaseQuantity(SESSION_ID, itemId).block();
+        cartService.increaseQuantity(USERNAME, itemId).block();
 
-        OrderDto result = orderService.createOrderFromCart(SESSION_ID).block();
+        OrderDto result = orderService.createOrderFromCart(USERNAME).block();
 
         assertNotNull(result);
         assertNotNull(result.id());
@@ -128,19 +128,19 @@ class OrderServiceImplTest {
         assertEquals(1, result.items().get(0).count());
         assertEquals(2500L, result.items().get(0).price());
 
-        assertTrue(cartService.getCartItems(SESSION_ID).collectList().block().isEmpty());
+        assertTrue(cartService.getCartItems(USERNAME).collectList().block().isEmpty());
     }
 
     @Test
     void getOrderById_Success() {
         Long itemId = savedItems.get(0).getId();
 
-        cartService.increaseQuantity(SESSION_ID, itemId).block();
-        cartService.increaseQuantity(SESSION_ID, itemId).block();
+        cartService.increaseQuantity(USERNAME, itemId).block();
+        cartService.increaseQuantity(USERNAME, itemId).block();
 
-        OrderDto createdOrder = orderService.createOrderFromCart(SESSION_ID).block();
+        OrderDto createdOrder = orderService.createOrderFromCart(USERNAME).block();
 
-        StepVerifier.create(orderService.getOrderById(createdOrder.id()))
+        StepVerifier.create(orderService.getOrderById(createdOrder.id(), USERNAME))
                 .assertNext(result -> {
                     assertEquals(createdOrder.id(), result.id());
                     assertEquals(5000L, result.totalSum());
@@ -155,7 +155,7 @@ class OrderServiceImplTest {
     void getOrderById_NotFound_ShouldThrowException() {
         Long nonExistingId = 999L;
 
-        StepVerifier.create(orderService.getOrderById(nonExistingId))
+        StepVerifier.create(orderService.getOrderById(nonExistingId, USERNAME))
                 .expectErrorMatches(ex -> ex instanceof OrderNotFoundException
                         && ex.getMessage().equals("Order not found with id: 999"))
                 .verify();
@@ -165,21 +165,21 @@ class OrderServiceImplTest {
     void getAllOrders_ShouldReturnAllOrdersSortedByDateDesc() throws InterruptedException {
         Long itemId = savedItems.get(0).getId();
 
-        cartService.increaseQuantity(SESSION_ID, itemId).block();
-        OrderDto order1 = orderService.createOrderFromCart(SESSION_ID).block();
+        cartService.increaseQuantity(USERNAME, itemId).block();
+        OrderDto order1 = orderService.createOrderFromCart(USERNAME).block();
 
         Thread.sleep(100);
 
-        cartService.increaseQuantity(SESSION_ID, itemId).block();
-        cartService.increaseQuantity(SESSION_ID, itemId).block();
-        OrderDto order2 = orderService.createOrderFromCart(SESSION_ID).block();
+        cartService.increaseQuantity(USERNAME, itemId).block();
+        cartService.increaseQuantity(USERNAME, itemId).block();
+        OrderDto order2 = orderService.createOrderFromCart(USERNAME).block();
 
         Thread.sleep(100);
 
-        cartService.increaseQuantity(SESSION_ID, itemId).block();
-        OrderDto order3 = orderService.createOrderFromCart(SESSION_ID).block();
+        cartService.increaseQuantity(USERNAME, itemId).block();
+        OrderDto order3 = orderService.createOrderFromCart(USERNAME).block();
 
-        List<OrderDto> orders = orderService.getAllOrders().collectList().block();
+        List<OrderDto> orders = orderService.getAllOrders(USERNAME).collectList().block();
 
         assertNotNull(orders);
         assertEquals(3, orders.size());
@@ -195,7 +195,7 @@ class OrderServiceImplTest {
 
     @Test
     void getAllOrders_Empty_ShouldReturnEmptyList() {
-        StepVerifier.create(orderService.getAllOrders())
+        StepVerifier.create(orderService.getAllOrders(USERNAME))
                 .verifyComplete();
     }
 
@@ -203,12 +203,42 @@ class OrderServiceImplTest {
     void createOrder_ShouldClearCartAfterCreation() {
         Long itemId = savedItems.get(0).getId();
 
-        cartService.increaseQuantity(SESSION_ID, itemId).block();
-        cartService.increaseQuantity(SESSION_ID, itemId).block();
-        assertFalse(cartService.getCartItems(SESSION_ID).collectList().block().isEmpty());
+        cartService.increaseQuantity(USERNAME, itemId).block();
+        cartService.increaseQuantity(USERNAME, itemId).block();
+        assertFalse(cartService.getCartItems(USERNAME).collectList().block().isEmpty());
 
-        orderService.createOrderFromCart(SESSION_ID).block();
+        orderService.createOrderFromCart(USERNAME).block();
 
-        assertTrue(cartService.getCartItems(SESSION_ID).collectList().block().isEmpty());
+        assertTrue(cartService.getCartItems(USERNAME).collectList().block().isEmpty());
+    }
+
+    @Test
+    void getOrderById_BelongingToAnotherUser_ShouldThrowException() {
+        String otherUsername = "buyer2";
+        Long itemId = savedItems.get(0).getId();
+
+        cartService.increaseQuantity(USERNAME, itemId).block();
+        OrderDto createdOrder = orderService.createOrderFromCart(USERNAME).block();
+
+        StepVerifier.create(orderService.getOrderById(createdOrder.id(), otherUsername))
+                .expectErrorMatches(ex -> ex instanceof OrderNotFoundException)
+                .verify();
+    }
+
+    @Test
+    void getAllOrders_ShouldNotIncludeOtherUsersOrders() {
+        String otherUsername = "buyer2";
+        Long itemId = savedItems.get(0).getId();
+
+        cartService.increaseQuantity(USERNAME, itemId).block();
+        orderService.createOrderFromCart(USERNAME).block();
+
+        cartService.increaseQuantity(otherUsername, itemId).block();
+        orderService.createOrderFromCart(otherUsername).block();
+
+        List<OrderDto> ownOrders = orderService.getAllOrders(USERNAME).collectList().block();
+
+        assertNotNull(ownOrders);
+        assertEquals(1, ownOrders.size());
     }
 }

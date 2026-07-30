@@ -6,11 +6,15 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.netty.DisposableServer;
+import reactor.netty.http.client.HttpClient;
 import reactor.netty.http.server.HttpServer;
 import reactor.test.StepVerifier;
-import ru.yandex.practicum.mymarket.config.PaymentClientConfig;
+import ru.yandex.practicum.mymarket.payment.client.api.PaymentsApi;
+import ru.yandex.practicum.mymarket.payment.client.invoker.ApiClient;
 
 import java.time.Duration;
 
@@ -19,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class PaymentServiceImplTest {
 
     private static final long STUB_BALANCE = 10000;
+    private static final String USERNAME = "buyer1";
     private static DisposableServer stubServer;
     private PaymentServiceImpl paymentService;
 
@@ -65,14 +70,20 @@ class PaymentServiceImplTest {
     }
 
     private static PaymentServiceImpl paymentServiceFor(String baseUrl, Duration timeout) {
-        PaymentClientConfig config = new PaymentClientConfig();
-        var apiClient = config.paymentApiClient(baseUrl, timeout);
-        return new PaymentServiceImpl(config.paymentsApi(apiClient));
+        HttpClient httpClient = HttpClient.create().responseTimeout(timeout);
+        WebClient webClient = WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .build();
+
+        ApiClient apiClient = new ApiClient(webClient);
+        apiClient.setBasePath(baseUrl);
+
+        return new PaymentServiceImpl(new PaymentsApi(apiClient));
     }
 
     @Test
     void checkBalance_WithSufficientBalance_ShouldReturnAvailableAndSufficient() {
-        StepVerifier.create(paymentService.checkBalance(5_000L))
+        StepVerifier.create(paymentService.checkBalance(USERNAME, 5_000L))
                 .assertNext(status -> {
                     assertTrue(status.available());
                     assertTrue(status.sufficientFunds());
@@ -84,7 +95,7 @@ class PaymentServiceImplTest {
 
     @Test
     void checkBalance_WithAmountAboveBalance_ShouldReturnInsufficientFunds() {
-        StepVerifier.create(paymentService.checkBalance(STUB_BALANCE + 1))
+        StepVerifier.create(paymentService.checkBalance(USERNAME, STUB_BALANCE + 1))
                 .assertNext(status -> {
                     assertTrue(status.available());
                     assertFalse(status.sufficientFunds());
@@ -95,7 +106,7 @@ class PaymentServiceImplTest {
 
     @Test
     void pay_WithAmountWithinBalance_ShouldReturnSuccess() {
-        StepVerifier.create(paymentService.pay(5_000L))
+        StepVerifier.create(paymentService.pay(USERNAME, 5_000L))
                 .assertNext(result -> {
                     assertTrue(result.success());
                     assertEquals("Payment successful", result.message());
@@ -105,7 +116,7 @@ class PaymentServiceImplTest {
 
     @Test
     void pay_WithAmountAboveBalance_ShouldReturnDeclined() {
-        StepVerifier.create(paymentService.pay(STUB_BALANCE + 1))
+        StepVerifier.create(paymentService.pay(USERNAME, STUB_BALANCE + 1))
                 .assertNext(result -> {
                     assertFalse(result.success());
                     assertEquals("Insufficient funds", result.message());
@@ -117,7 +128,7 @@ class PaymentServiceImplTest {
     void checkBalance_WhenEndpointUnreachable_ShouldReturnUnavailable() {
         PaymentServiceImpl unreachableService = paymentServiceFor("http://localhost:1", Duration.ofMillis(500));
 
-        StepVerifier.create(unreachableService.checkBalance(1L))
+        StepVerifier.create(unreachableService.checkBalance(USERNAME, 1L))
                 .assertNext(status -> {
                     assertFalse(status.available());
                     assertFalse(status.checkoutAllowed());
@@ -130,7 +141,7 @@ class PaymentServiceImplTest {
     void pay_WhenEndpointUnreachable_ShouldReturnFailureResult() {
         PaymentServiceImpl unreachableService = paymentServiceFor("http://localhost:1", Duration.ofMillis(500));
 
-        StepVerifier.create(unreachableService.pay(1L))
+        StepVerifier.create(unreachableService.pay(USERNAME, 1L))
                 .assertNext(result -> {
                     assertFalse(result.success());
                     assertNotNull(result.message());

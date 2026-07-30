@@ -1,5 +1,6 @@
 package ru.yandex.practicum.mymarket.controller;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
@@ -21,11 +22,15 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockUser;
 
 @WebFluxTest(OrderController.class)
 class OrderControllerTest {
 
     @Autowired
+    private WebTestClient client;
+
     private WebTestClient webTestClient;
 
     @MockBean
@@ -37,6 +42,11 @@ class OrderControllerTest {
     @MockBean
     private PaymentService paymentService;
 
+    @BeforeEach
+    void setUp() {
+        webTestClient = client.mutateWith(mockUser("buyer1")).mutateWith(csrf());
+    }
+
     @Test
     void getOrders_ShouldReturnOrdersPage() {
         List<OrderDto> orders = List.of(
@@ -47,7 +57,7 @@ class OrderControllerTest {
                                 orderItem(2L, "Ракетка", 4500L, 1)))
         );
 
-        when(orderService.getAllOrders()).thenReturn(Flux.fromIterable(orders));
+        when(orderService.getAllOrders(anyString())).thenReturn(Flux.fromIterable(orders));
 
         webTestClient.get()
                 .uri("/orders")
@@ -63,12 +73,12 @@ class OrderControllerTest {
                     assert body.contains("9500");
                 });
 
-        verify(orderService, times(1)).getAllOrders();
+        verify(orderService, times(1)).getAllOrders(anyString());
     }
 
     @Test
     void getOrders_WhenNoOrders_ShouldReturnEmptyPage() {
-        when(orderService.getAllOrders()).thenReturn(Flux.empty());
+        when(orderService.getAllOrders(anyString())).thenReturn(Flux.empty());
 
         webTestClient.get()
                 .uri("/orders")
@@ -81,7 +91,7 @@ class OrderControllerTest {
                     assert body.contains("Витрина магазина");
                 });
 
-        verify(orderService, times(1)).getAllOrders();
+        verify(orderService, times(1)).getAllOrders(anyString());
     }
 
     @Test
@@ -90,7 +100,7 @@ class OrderControllerTest {
         OrderDto order = order(orderId, 5000L, LocalDateTime.now(),
                 List.of(orderItem(1L, "Мяч", 2500L, 2)));
 
-        when(orderService.getOrderById(orderId)).thenReturn(Mono.just(order));
+        when(orderService.getOrderById(eq(orderId), anyString())).thenReturn(Mono.just(order));
 
         webTestClient.get()
                 .uri("/orders/{id}", orderId)
@@ -104,7 +114,7 @@ class OrderControllerTest {
                     assert body.contains("5000");
                 });
 
-        verify(orderService, times(1)).getOrderById(orderId);
+        verify(orderService, times(1)).getOrderById(eq(orderId), anyString());
     }
 
     @Test
@@ -113,7 +123,7 @@ class OrderControllerTest {
         OrderDto order = order(orderId, 5000L, LocalDateTime.now(),
                 List.of(orderItem(1L, "Мяч", 2500L, 2)));
 
-        when(orderService.getOrderById(orderId)).thenReturn(Mono.just(order));
+        when(orderService.getOrderById(eq(orderId), anyString())).thenReturn(Mono.just(order));
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
@@ -129,7 +139,7 @@ class OrderControllerTest {
                     assert body.contains("Успешная покупка");
                 });
 
-        verify(orderService, times(1)).getOrderById(orderId);
+        verify(orderService, times(1)).getOrderById(eq(orderId), anyString());
     }
 
     @Test
@@ -141,7 +151,7 @@ class OrderControllerTest {
 
         when(cartService.getCartItems(anyString())).thenReturn(Flux.fromIterable(cartItems));
         when(cartService.getTotalPrice(anyString())).thenReturn(Mono.just(5000L));
-        when(paymentService.pay(5000L)).thenReturn(Mono.just(new PaymentResult(true, "Payment successful")));
+        when(paymentService.pay(anyString(), eq(5000L))).thenReturn(Mono.just(new PaymentResult(true, "Payment successful")));
         when(orderService.createOrderFromCart(anyString())).thenReturn(Mono.just(createdOrder));
 
         webTestClient.post()
@@ -151,7 +161,7 @@ class OrderControllerTest {
                 .expectHeader().valueEquals("Location", "/orders/1?newOrder=true");
 
         verify(cartService, times(1)).getCartItems(anyString());
-        verify(paymentService, times(1)).pay(5000L);
+        verify(paymentService, times(1)).pay(anyString(), eq(5000L));
         verify(orderService, times(1)).createOrderFromCart(anyString());
     }
 
@@ -167,7 +177,7 @@ class OrderControllerTest {
                 .expectHeader().valueEquals("Location", "/cart/items");
 
         verify(cartService, times(1)).getCartItems(anyString());
-        verify(paymentService, never()).pay(any());
+        verify(paymentService, never()).pay(any(), any());
         verify(orderService, never()).createOrderFromCart(anyString());
     }
 
@@ -184,7 +194,7 @@ class OrderControllerTest {
 
         when(cartService.getCartItems(anyString())).thenReturn(Flux.fromIterable(cartItems));
         when(cartService.getTotalPrice(anyString())).thenReturn(Mono.just(9500L));
-        when(paymentService.pay(9500L)).thenReturn(Mono.just(new PaymentResult(true, "Payment successful")));
+        when(paymentService.pay(anyString(), eq(9500L))).thenReturn(Mono.just(new PaymentResult(true, "Payment successful")));
         when(orderService.createOrderFromCart(anyString())).thenReturn(Mono.just(createdOrder));
 
         webTestClient.post()
@@ -194,7 +204,7 @@ class OrderControllerTest {
                 .expectHeader().valueEquals("Location", "/orders/2?newOrder=true");
 
         verify(cartService, times(1)).getCartItems(anyString());
-        verify(paymentService, times(1)).pay(9500L);
+        verify(paymentService, times(1)).pay(anyString(), eq(9500L));
         verify(orderService, times(1)).createOrderFromCart(anyString());
     }
 
@@ -204,7 +214,7 @@ class OrderControllerTest {
 
         when(cartService.getCartItems(anyString())).thenReturn(Flux.fromIterable(cartItems));
         when(cartService.getTotalPrice(anyString())).thenReturn(Mono.just(5000L));
-        when(paymentService.pay(5000L)).thenReturn(Mono.just(new PaymentResult(false, "Insufficient funds")));
+        when(paymentService.pay(anyString(), eq(5000L))).thenReturn(Mono.just(new PaymentResult(false, "Insufficient funds")));
 
         webTestClient.post()
                 .uri("/buy")
@@ -212,7 +222,7 @@ class OrderControllerTest {
                 .expectStatus().is3xxRedirection()
                 .expectHeader().valueEquals("Location", "/cart/items");
 
-        verify(paymentService, times(1)).pay(5000L);
+        verify(paymentService, times(1)).pay(anyString(), eq(5000L));
         verify(orderService, never()).createOrderFromCart(anyString());
     }
 

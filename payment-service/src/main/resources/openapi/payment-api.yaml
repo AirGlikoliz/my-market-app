@@ -19,6 +19,14 @@ paths:
         - payments
       operationId: getBalance
       summary: Получить текущий баланс счёта
+      parameters:
+        - name: username
+          in: query
+          required: true
+          description: Покупатель, чей счёт проверяется
+          schema:
+            type: string
+          example: buyer1
       responses:
         '200':
           description: Текущий баланс успешно получен
@@ -71,6 +79,7 @@ components:
       type: object
       required:
         - amount
+        - username
       properties:
         amount:
           type: integer
@@ -78,6 +87,10 @@ components:
           minimum: 1
           description: Сумма к списанию
           example: 4500
+        username:
+          type: string
+          description: Покупатель, чей счёт используется для списания
+          example: buyer1
     PaymentResponse:
       type: object
       required:
