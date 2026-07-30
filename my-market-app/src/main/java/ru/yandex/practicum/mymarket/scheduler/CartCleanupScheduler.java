@@ -2,10 +2,12 @@ package ru.yandex.practicum.mymarket.scheduler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import ru.yandex.practicum.mymarket.repository.CartItemRepository;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 
 @Component
@@ -15,11 +17,12 @@ public class CartCleanupScheduler {
 
     private final CartItemRepository cartItemRepository;
 
-    private static final int CART_TTL_MINUTES = 30;
+    @Value("${market.cart.ttl:30m}")
+    private Duration cartTtl;
 
     @Scheduled(fixedRate = 5 * 60 * 1000)
     public void cleanupExpiredCartItems() {
-        LocalDateTime deadline = LocalDateTime.now().minusMinutes(CART_TTL_MINUTES);
+        LocalDateTime deadline = LocalDateTime.now().minus(cartTtl);
         log.info("Cleaning up cart items older than {}", deadline);
 
         cartItemRepository.deleteAllOlderThan(deadline)

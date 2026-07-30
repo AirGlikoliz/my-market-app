@@ -12,6 +12,9 @@ servers:
 tags:
   - name: payments
     description: Операции с балансом и платежами
+security:
+  - oauth2ClientCredentials:
+      - payment.access
 paths:
   /api/v1/payments/balance:
     get:
@@ -26,6 +29,7 @@ paths:
           description: Покупатель, чей счёт проверяется
           schema:
             type: string
+            minLength: 1
           example: buyer1
       responses:
         '200':
@@ -34,6 +38,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BalanceResponse'
+        '401':
+          description: Токен доступа отсутствует, недействителен или просрочен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Токен действителен, но не содержит требуемого scope (payment.access)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/payments:
     post:
       tags:
@@ -63,7 +79,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Токен доступа отсутствует, недействителен или просрочен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Токен действителен, но не содержит требуемого scope (payment.access)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
+  securitySchemes:
+    oauth2ClientCredentials:
+      type: oauth2
+      description: >
+        payment-service работает как OAuth2 Resource Server: вызывающий сервис
+        (my-market-app) получает JWT у auth-server по Client Credentials Flow
+        со scope payment.access и передаёт его как Authorization: Bearer.
+      flows:
+        clientCredentials:
+          tokenUrl: http://localhost:9000/oauth2/token
+          scopes:
+            payment.access: Доступ к балансу и списанию средств покупателя
   schemas:
     BalanceResponse:
       type: object
@@ -89,6 +129,7 @@ components:
           example: 4500
         username:
           type: string
+          minLength: 1
           description: Покупатель, чей счёт используется для списания
           example: buyer1
     PaymentResponse:

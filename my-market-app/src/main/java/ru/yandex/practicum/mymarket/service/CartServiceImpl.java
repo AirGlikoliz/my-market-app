@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import ru.yandex.practicum.mymarket.dto.CartAction;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
 import ru.yandex.practicum.mymarket.entity.CartItem;
 import ru.yandex.practicum.mymarket.repository.CartItemRepository;
@@ -34,13 +35,14 @@ public class CartServiceImpl implements CartService {
                 existing.setQuantity(existing.getQuantity() + 1);
                 return cartItemRepository.save(existing);
             })
-            .switchIfEmpty(Mono.defer(() -> cartItemRepository.save(
-                CartItem.builder()
-                    .username(username)
-                    .itemId(itemId)
-                    .quantity(1)
-                    .build()
-            )))
+            .switchIfEmpty(Mono.defer(() -> itemService.getItemEntityById(itemId)
+                .flatMap(item -> cartItemRepository.save(
+                    CartItem.builder()
+                        .username(username)
+                        .itemId(itemId)
+                        .quantity(1)
+                        .build()
+                ))))
             .then();
     }
 
@@ -96,17 +98,15 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
-    public Mono<Void> applyAction(String username, Long itemId, String action) {
-        String normalizedAction = action != null ? action.toUpperCase() : "";
-
-        return switch (normalizedAction) {
-            case "PLUS" -> increaseQuantity(username, itemId);
-            case "MINUS" -> decreaseQuantity(username, itemId);
-            case "DELETE" -> removeFromCart(username, itemId);
-            default -> {
-                log.warn("Unknown action: {}", action);
-                yield Mono.empty();
-            }
+    public Mono<Void> applyAction(String username, Long itemId, CartAction action) {
+        if (action == null) {
+            log.warn("No action given for item {}, user {}", itemId, username);
+            return Mono.empty();
+        }
+        return switch (action) {
+            case PLUS -> increaseQuantity(username, itemId);
+            case MINUS -> decreaseQuantity(username, itemId);
+            case DELETE -> removeFromCart(username, itemId);
         };
     }
 }

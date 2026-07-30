@@ -58,15 +58,15 @@ public class AuthorizationServerConfig {
             @Value("${auth-server.market-app-client.secret}") String clientSecret) {
 
         RegisteredClient marketAppClient = RegisteredClient.withId(UUID.randomUUID().toString())
-            .clientId(clientId)
-            .clientSecret(passwordEncoder.encode(clientSecret))
-            .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-            .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
-            .scope(PAYMENT_SCOPE)
-            .tokenSettings(TokenSettings.builder()
-                .accessTokenTimeToLive(Duration.ofMinutes(15))
-                .build())
-            .build();
+                .clientId(clientId)
+                .clientSecret(passwordEncoder.encode(clientSecret))
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+                .scope(PAYMENT_SCOPE)
+                .tokenSettings(TokenSettings.builder()
+                        .accessTokenTimeToLive(Duration.ofMinutes(15))
+                        .build())
+                .build();
 
         return new InMemoryRegisteredClientRepository(marketAppClient);
     }
@@ -75,8 +75,8 @@ public class AuthorizationServerConfig {
     public AuthorizationServerSettings authorizationServerSettings(
             @Value("${auth-server.issuer-uri}") String issuerUri) {
         return AuthorizationServerSettings.builder()
-            .issuer(issuerUri)
-            .build();
+                .issuer(issuerUri)
+                .build();
     }
 
     @Bean

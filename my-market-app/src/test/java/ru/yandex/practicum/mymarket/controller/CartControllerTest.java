@@ -5,9 +5,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import ru.yandex.practicum.mymarket.config.WebConfig;
+import ru.yandex.practicum.mymarket.dto.CartAction;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
 import ru.yandex.practicum.mymarket.dto.PaymentStatus;
 import ru.yandex.practicum.mymarket.service.CartService;
@@ -15,12 +18,15 @@ import ru.yandex.practicum.mymarket.service.PaymentService;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockUser;
 
 @WebFluxTest(CartController.class)
+@Import(WebConfig.class)
 class CartControllerTest {
 
     @Autowired
@@ -59,11 +65,11 @@ class CartControllerTest {
                 .expectBody(String.class)
                 .consumeWith(result -> {
                     String body = result.getResponseBody();
-                    assert body != null;
-                    assert body.contains("Мяч");
-                    assert body.contains("Ракетка");
-                    assert body.contains("9500");
-                    assert body.contains("cart");
+                    assertNotNull(body);
+                    assertTrue(body.contains("Мяч"));
+                    assertTrue(body.contains("Ракетка"));
+                    assertTrue(body.contains("9500"));
+                    assertTrue(body.contains("cart"));
                 });
     }
 
@@ -97,8 +103,8 @@ class CartControllerTest {
                 .expectBody(String.class)
                 .consumeWith(result -> {
                     String body = result.getResponseBody();
-                    assert body != null;
-                    assert body.contains("Недостаточно средств");
+                    assertNotNull(body);
+                    assertTrue(body.contains("Недостаточно средств"));
                 });
     }
 
@@ -119,15 +125,15 @@ class CartControllerTest {
                 .expectBody(String.class)
                 .consumeWith(result -> {
                     String body = result.getResponseBody();
-                    assert body != null;
-                    assert body.contains("Сервис платежей недоступен");
+                    assertNotNull(body);
+                    assertTrue(body.contains("Сервис платежей недоступен"));
                 });
     }
 
     @Test
-    void updateCartItems_WithPlusAction_ShouldIncreaseQuantityAndRedirect() {
+    void updateCartItems_WithPlusAction_ShouldApplyActionAndRedirect() {
         Long itemId = 1L;
-        when(cartService.increaseQuantity(anyString(), eq(itemId))).thenReturn(Mono.empty());
+        when(cartService.applyAction(anyString(), eq(itemId), eq(CartAction.PLUS))).thenReturn(Mono.empty());
 
         webTestClient.post()
                 .uri(uriBuilder -> uriBuilder
@@ -139,15 +145,13 @@ class CartControllerTest {
                 .expectStatus().is3xxRedirection()
                 .expectHeader().valueEquals("Location", "/cart/items");
 
-        verify(cartService, times(1)).increaseQuantity(anyString(), eq(itemId));
-        verify(cartService, never()).decreaseQuantity(anyString(), anyLong());
-        verify(cartService, never()).removeFromCart(anyString(), anyLong());
+        verify(cartService, times(1)).applyAction(anyString(), eq(itemId), eq(CartAction.PLUS));
     }
 
     @Test
-    void updateCartItems_WithMinusAction_ShouldDecreaseQuantityAndRedirect() {
+    void updateCartItems_WithMinusAction_ShouldApplyActionAndRedirect() {
         Long itemId = 2L;
-        when(cartService.decreaseQuantity(anyString(), eq(itemId))).thenReturn(Mono.empty());
+        when(cartService.applyAction(anyString(), eq(itemId), eq(CartAction.MINUS))).thenReturn(Mono.empty());
 
         webTestClient.post()
                 .uri(uriBuilder -> uriBuilder
@@ -159,15 +163,13 @@ class CartControllerTest {
                 .expectStatus().is3xxRedirection()
                 .expectHeader().valueEquals("Location", "/cart/items");
 
-        verify(cartService, times(1)).decreaseQuantity(anyString(), eq(itemId));
-        verify(cartService, never()).increaseQuantity(anyString(), anyLong());
-        verify(cartService, never()).removeFromCart(anyString(), anyLong());
+        verify(cartService, times(1)).applyAction(anyString(), eq(itemId), eq(CartAction.MINUS));
     }
 
     @Test
-    void updateCartItems_WithDeleteAction_ShouldRemoveFromCartAndRedirect() {
+    void updateCartItems_WithDeleteAction_ShouldApplyActionAndRedirect() {
         Long itemId = 3L;
-        when(cartService.removeFromCart(anyString(), eq(itemId))).thenReturn(Mono.empty());
+        when(cartService.applyAction(anyString(), eq(itemId), eq(CartAction.DELETE))).thenReturn(Mono.empty());
 
         webTestClient.post()
                 .uri(uriBuilder -> uriBuilder
@@ -179,13 +181,29 @@ class CartControllerTest {
                 .expectStatus().is3xxRedirection()
                 .expectHeader().valueEquals("Location", "/cart/items");
 
-        verify(cartService, times(1)).removeFromCart(anyString(), eq(itemId));
-        verify(cartService, never()).increaseQuantity(anyString(), anyLong());
-        verify(cartService, never()).decreaseQuantity(anyString(), anyLong());
+        verify(cartService, times(1)).applyAction(anyString(), eq(itemId), eq(CartAction.DELETE));
     }
 
     @Test
-    void updateCartItems_WithUnknownAction_ShouldRedirect() {
+    void updateCartItems_WithLowercaseAction_ShouldStillBindAndApply() {
+        Long itemId = 1L;
+        when(cartService.applyAction(anyString(), eq(itemId), eq(CartAction.PLUS))).thenReturn(Mono.empty());
+
+        webTestClient.post()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/cart/items")
+                        .queryParam("id", itemId)
+                        .queryParam("action", "plus")
+                        .build())
+                .exchange()
+                .expectStatus().is3xxRedirection()
+                .expectHeader().valueEquals("Location", "/cart/items");
+
+        verify(cartService, times(1)).applyAction(anyString(), eq(itemId), eq(CartAction.PLUS));
+    }
+
+    @Test
+    void updateCartItems_WithUnknownAction_ShouldReturnBadRequest() {
         Long itemId = 1L;
 
         webTestClient.post()
@@ -195,11 +213,21 @@ class CartControllerTest {
                         .queryParam("action", "UNKNOWN")
                         .build())
                 .exchange()
-                .expectStatus().is3xxRedirection()
-                .expectHeader().valueEquals("Location", "/cart/items");
+                .expectStatus().isBadRequest();
 
-        verify(cartService, never()).increaseQuantity(anyString(), anyLong());
-        verify(cartService, never()).decreaseQuantity(anyString(), anyLong());
-        verify(cartService, never()).removeFromCart(anyString(), anyLong());
+        verify(cartService, never()).applyAction(anyString(), any(), any());
+    }
+
+    @Test
+    void updateCartItems_WithMissingId_ShouldReturnBadRequest() {
+        webTestClient.post()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/cart/items")
+                        .queryParam("action", "PLUS")
+                        .build())
+                .exchange()
+                .expectStatus().isBadRequest();
+
+        verify(cartService, never()).applyAction(anyString(), any(), any());
     }
 }

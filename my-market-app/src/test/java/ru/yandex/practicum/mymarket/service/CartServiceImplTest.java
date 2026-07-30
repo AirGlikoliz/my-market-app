@@ -10,10 +10,13 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import reactor.test.StepVerifier;
 import ru.yandex.practicum.mymarket.cache.ItemCacheRepository;
+import ru.yandex.practicum.mymarket.config.R2dbcAuditingConfig;
 import ru.yandex.practicum.mymarket.config.RedisConfig;
+import ru.yandex.practicum.mymarket.dto.CartAction;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
 import ru.yandex.practicum.mymarket.entity.CartItem;
 import ru.yandex.practicum.mymarket.entity.Item;
+import ru.yandex.practicum.mymarket.exception.ItemNotFoundException;
 import ru.yandex.practicum.mymarket.repository.CartItemRepository;
 import ru.yandex.practicum.mymarket.repository.ItemRepository;
 import ru.yandex.practicum.mymarket.cache.EmbeddedRedisConfiguration;
@@ -25,7 +28,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @DataR2dbcTest
 @ActiveProfiles("test")
 @Import({CartServiceImpl.class, ItemServiceImpl.class, ItemCacheRepository.class, RedisConfig.class,
-        RedisAutoConfiguration.class, RedisReactiveAutoConfiguration.class, EmbeddedRedisConfiguration.class})
+        RedisAutoConfiguration.class, RedisReactiveAutoConfiguration.class, EmbeddedRedisConfiguration.class,
+        R2dbcAuditingConfig.class})
 class CartServiceImplTest {
 
     private static final String USERNAME = "buyer1";
@@ -84,6 +88,31 @@ class CartServiceImplTest {
         CartItem saved = cartItemRepository.findByUsernameAndItemId(USERNAME, item1.getId()).block();
         assertNotNull(saved);
         assertEquals(2, saved.getQuantity());
+    }
+
+    @Test
+    void increaseQuantity_WhenItemDoesNotExist_ShouldThrowException() {
+        Long nonExistingItemId = 999L;
+
+        StepVerifier.create(cartService.increaseQuantity(USERNAME, nonExistingItemId))
+                .expectErrorMatches(ex -> ex instanceof ItemNotFoundException)
+                .verify();
+
+        List<CartItem> cart = cartItemRepository.findByUsername(USERNAME).collectList().block();
+        assertNotNull(cart);
+        assertTrue(cart.isEmpty());
+    }
+
+    @Test
+    void increaseQuantity_OnExistingRow_ShouldBumpUpdatedAt() {
+        cartService.increaseQuantity(USERNAME, item1.getId()).block();
+        CartItem afterFirstSave = cartItemRepository.findByUsernameAndItemId(USERNAME, item1.getId()).block();
+        assertNotNull(afterFirstSave.getUpdatedAt());
+
+        cartService.increaseQuantity(USERNAME, item1.getId()).block();
+        CartItem afterSecondSave = cartItemRepository.findByUsernameAndItemId(USERNAME, item1.getId()).block();
+
+        assertTrue(afterSecondSave.getUpdatedAt().isAfter(afterFirstSave.getUpdatedAt()));
     }
 
     @Test
@@ -224,7 +253,7 @@ class CartServiceImplTest {
 
     @Test
     void applyAction_WithPlus_ShouldIncreaseQuantity() {
-        StepVerifier.create(cartService.applyAction(USERNAME, item1.getId(), "PLUS"))
+        StepVerifier.create(cartService.applyAction(USERNAME, item1.getId(), CartAction.PLUS))
                 .verifyComplete();
 
         CartItem saved = cartItemRepository.findByUsernameAndItemId(USERNAME, item1.getId()).block();
@@ -237,7 +266,7 @@ class CartServiceImplTest {
         cartService.increaseQuantity(USERNAME, item1.getId()).block();
         cartService.increaseQuantity(USERNAME, item1.getId()).block();
 
-        StepVerifier.create(cartService.applyAction(USERNAME, item1.getId(), "MINUS"))
+        StepVerifier.create(cartService.applyAction(USERNAME, item1.getId(), CartAction.MINUS))
                 .verifyComplete();
 
         CartItem saved = cartItemRepository.findByUsernameAndItemId(USERNAME, item1.getId()).block();
@@ -249,31 +278,11 @@ class CartServiceImplTest {
     void applyAction_WithDelete_ShouldRemoveFromCart() {
         cartService.increaseQuantity(USERNAME, item1.getId()).block();
 
-        StepVerifier.create(cartService.applyAction(USERNAME, item1.getId(), "DELETE"))
+        StepVerifier.create(cartService.applyAction(USERNAME, item1.getId(), CartAction.DELETE))
                 .verifyComplete();
 
         CartItem removed = cartItemRepository.findByUsernameAndItemId(USERNAME, item1.getId()).block();
         assertNull(removed);
-    }
-
-    @Test
-    void applyAction_WithLowercaseAction_ShouldStillWork() {
-        StepVerifier.create(cartService.applyAction(USERNAME, item1.getId(), "plus"))
-                .verifyComplete();
-
-        CartItem saved = cartItemRepository.findByUsernameAndItemId(USERNAME, item1.getId()).block();
-        assertNotNull(saved);
-        assertEquals(1, saved.getQuantity());
-    }
-
-    @Test
-    void applyAction_WithUnknownAction_ShouldDoNothing() {
-        StepVerifier.create(cartService.applyAction(USERNAME, item1.getId(), "UNKNOWN"))
-                .verifyComplete();
-
-        List<CartItem> cart = cartItemRepository.findByUsername(USERNAME).collectList().block();
-        assertNotNull(cart);
-        assertTrue(cart.isEmpty());
     }
 
     @Test

@@ -46,7 +46,12 @@ class AccessControlIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        Item item = itemRepository.findAll().blockFirst();
+        Item item = itemRepository.save(Item.builder()
+                .title("Мяч футбольный")
+                .description("Профессиональный футбольный мяч")
+                .imgPath("/images/ball.jpg")
+                .price(2500L)
+                .build()).block();
         itemId = item.getId();
 
         when(paymentService.checkBalance(anyString(), any()))

@@ -13,7 +13,8 @@ public record OrderDto(
         Long id,
         LocalDateTime orderDate,
         List<OrderItemDto> items,
-        Long totalSum
+        Long totalSum,
+        OrderStatus status
 ) {
 
     public static OrderDto convertToDto(Order order, List<OrderItem> items) {
@@ -31,6 +32,7 @@ public record OrderDto(
                 .orderDate(order.getOrderDate())
                 .items(itemDtos)
                 .totalSum(order.getTotalSum())
+                .status(order.getStatus())
                 .build();
     }
 
@@ -39,6 +41,7 @@ public record OrderDto(
                 .id(order.getId())
                 .orderDate(order.getOrderDate())
                 .totalSum(order.getTotalSum())
+                .status(order.getStatus())
                 .build();
     }
 }

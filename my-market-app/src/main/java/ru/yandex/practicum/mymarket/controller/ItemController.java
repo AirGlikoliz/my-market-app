@@ -1,5 +1,6 @@
 package ru.yandex.practicum.mymarket.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -7,11 +8,13 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.controller.util.ControllerUtil;
 import ru.yandex.practicum.mymarket.dto.ItemActionRequest;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
 import ru.yandex.practicum.mymarket.dto.PagingInfo;
+import ru.yandex.practicum.mymarket.dto.SortOption;
 import ru.yandex.practicum.mymarket.service.CartService;
 import ru.yandex.practicum.mymarket.service.ItemService;
 
@@ -31,7 +34,7 @@ public class ItemController {
 
     @GetMapping({"/", "/items"})
     public Mono<String> getItems(@RequestParam(required = false) String search,
-                                 @RequestParam(required = false, defaultValue = "NO") String sort,
+                                 @RequestParam(required = false, defaultValue = "NO") SortOption sort,
                                  @RequestParam(required = false, defaultValue = "1") int pageNumber,
                                  @RequestParam(required = false, defaultValue = "5") int pageSize,
                                  Model model,
@@ -101,15 +104,22 @@ public class ItemController {
     }
 
     @PostMapping("/items")
-    public Mono<String> updateCartFromItems(@ModelAttribute ItemActionRequest request, Authentication authentication) {
+    public Mono<String> updateCartFromItems(@Valid @ModelAttribute ItemActionRequest request, Authentication authentication) {
 
         log.info("POST /items - id: {}, action: {}, search: {}, sort: {}, page: {}, size: {}",
                 request.id(), request.action(), request.search(),
                 request.sort(), request.pageNumber(), request.pageSize());
 
         return cartService.applyAction(authentication.getName(), request.id(), request.action())
-            .thenReturn(String.format("redirect:/items?search=%s&sort=%s&pageNumber=%d&pageSize=%d",
-                request.search(), request.sort(), request.pageNumber(), request.pageSize()));
+            .thenReturn(UriComponentsBuilder.fromPath("/items")
+                .queryParam("search", request.search())
+                .queryParam("sort", request.sort())
+                .queryParam("pageNumber", request.pageNumber())
+                .queryParam("pageSize", request.pageSize())
+                .build()
+                .encode()
+                .toUriString())
+            .map(uri -> "redirect:" + uri);
     }
 
     @PostMapping("/items/{id}")

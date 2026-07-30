@@ -14,6 +14,7 @@ import reactor.test.StepVerifier;
 import ru.yandex.practicum.mymarket.cache.ItemCacheRepository;
 import ru.yandex.practicum.mymarket.config.RedisConfig;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
+import ru.yandex.practicum.mymarket.dto.SortOption;
 import ru.yandex.practicum.mymarket.entity.Item;
 import ru.yandex.practicum.mymarket.exception.ItemNotFoundException;
 import ru.yandex.practicum.mymarket.repository.ItemRepository;
@@ -90,7 +91,7 @@ class ItemServiceImplTest {
     void getItems_WithoutSearch_ShouldReturnAllItems() {
         int pageNumber = 1;
         int pageSize = 10;
-        String sort = "NO";
+        SortOption sort = SortOption.NO;
 
         Page<ItemDto> result = itemService.getItems(null, sort, pageNumber, pageSize).block();
 
@@ -103,7 +104,7 @@ class ItemServiceImplTest {
         String search = "мяч";
         int pageNumber = 1;
         int pageSize = 10;
-        String sort = "NO";
+        SortOption sort = SortOption.NO;
 
         Page<ItemDto> result = itemService.getItems(search, sort, pageNumber, pageSize).block();
 
@@ -120,7 +121,7 @@ class ItemServiceImplTest {
         String search = "несуществующий товар";
         int pageNumber = 1;
         int pageSize = 10;
-        String sort = "NO";
+        SortOption sort = SortOption.NO;
 
         Page<ItemDto> result = itemService.getItems(search, sort, pageNumber, pageSize).block();
 
@@ -130,7 +131,7 @@ class ItemServiceImplTest {
 
     @Test
     void getItems_WithAlphaSort_ShouldReturnSortedByTitle() {
-        String sort = "ALPHA";
+        SortOption sort = SortOption.ALPHA;
         int pageNumber = 1;
         int pageSize = 10;
 
@@ -145,7 +146,7 @@ class ItemServiceImplTest {
 
     @Test
     void getItems_WithPriceSort_ShouldReturnSortedByPrice() {
-        String sort = "PRICE";
+        SortOption sort = SortOption.PRICE;
         int pageNumber = 1;
         int pageSize = 10;
 
@@ -164,7 +165,7 @@ class ItemServiceImplTest {
     void getItems_WithPagination_ShouldReturnCorrectPage() {
         int pageNumber = 2;
         int pageSize = 2;
-        String sort = "NO";
+        SortOption sort = SortOption.NO;
 
         Page<ItemDto> result = itemService.getItems(null, sort, pageNumber, pageSize).block();
 
@@ -219,7 +220,7 @@ class ItemServiceImplTest {
     @Test
     void getItems_WithEmptySearch_ShouldReturnAllItems() {
         String search = "";
-        String sort = "NO";
+        SortOption sort = SortOption.NO;
         int pageNumber = 1;
         int pageSize = 10;
 

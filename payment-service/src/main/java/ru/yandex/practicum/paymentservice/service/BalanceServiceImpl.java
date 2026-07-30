@@ -36,7 +36,7 @@ public class BalanceServiceImpl implements BalanceService {
             do {
                 current = balance.get();
                 if (current < amount) {
-                    log.error("Payment declined for {}: insufficient funds, balance={}, requested={}", username, current, amount);
+                    log.warn("Payment declined for {}: insufficient funds, balance={}, requested={}", username, current, amount);
                     return new PaymentResponse(false, current, "Insufficient funds");
                 }
                 updated = current - amount;

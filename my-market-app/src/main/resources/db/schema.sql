@@ -14,13 +14,13 @@ CREATE TABLE IF NOT EXISTS items (
       title VARCHAR(200) NOT NULL,
       description VARCHAR(1000) NOT NULL,
       img_path VARCHAR(500),
-      price BIGINT NOT NULL);
+      price BIGINT NOT NULL CHECK (price > 0));
 
 CREATE TABLE IF NOT EXISTS cart_items (
       id BIGSERIAL PRIMARY KEY,
       username VARCHAR(64) NOT NULL REFERENCES users(username),
-      item_id BIGINT NOT NULL,
-      quantity INT NOT NULL,
+      item_id BIGINT NOT NULL REFERENCES items(id),
+      quantity INT NOT NULL CHECK (quantity > 0),
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT uq_cart_items_username_item UNIQUE (username, item_id)
 );
@@ -29,14 +29,16 @@ CREATE TABLE IF NOT EXISTS orders (
       id BIGSERIAL PRIMARY KEY,
       username VARCHAR(64) NOT NULL REFERENCES users(username),
       order_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      total_sum BIGINT NOT NULL);
+      total_sum BIGINT NOT NULL CHECK (total_sum > 0),
+      status VARCHAR(20) NOT NULL DEFAULT 'PENDING'
+          CHECK (status IN ('PENDING', 'PAID', 'FAILED')));
 
 CREATE TABLE IF NOT EXISTS order_items (
       id BIGSERIAL PRIMARY KEY,
       item_id BIGINT NOT NULL,
       title VARCHAR(200) NOT NULL,
-      price BIGINT NOT NULL,
-      count INT NOT NULL,
+      price BIGINT NOT NULL CHECK (price > 0),
+      count INT NOT NULL CHECK (count > 0),
       order_id BIGINT NOT NULL,
       CONSTRAINT fk_order_items_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE);
 

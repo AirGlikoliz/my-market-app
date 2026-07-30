@@ -3,27 +3,28 @@ package ru.yandex.practicum.mymarket.service;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.data.r2dbc.DataR2dbcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import reactor.test.StepVerifier;
+import ru.yandex.practicum.mymarket.dto.CartSnapshot;
+import ru.yandex.practicum.mymarket.dto.ItemDto;
 import ru.yandex.practicum.mymarket.dto.OrderDto;
-import ru.yandex.practicum.mymarket.entity.Item;
 import ru.yandex.practicum.mymarket.entity.Order;
 import ru.yandex.practicum.mymarket.entity.OrderItem;
+import ru.yandex.practicum.mymarket.dto.OrderStatus;
 import ru.yandex.practicum.mymarket.exception.OrderNotFoundException;
-import ru.yandex.practicum.mymarket.repository.CartItemRepository;
-import ru.yandex.practicum.mymarket.repository.ItemRepository;
 import ru.yandex.practicum.mymarket.repository.OrderItemRepository;
 import ru.yandex.practicum.mymarket.repository.OrderRepository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
+@DataR2dbcTest
 @ActiveProfiles("test")
-@Import({OrderServiceImpl.class, CartServiceImpl.class, ItemServiceImpl.class})
+@Import(OrderServiceImpl.class)
 class OrderServiceImplTest {
 
     private static final String USERNAME = "buyer1";
@@ -35,66 +36,44 @@ class OrderServiceImplTest {
     private OrderItemRepository orderItemRepository;
 
     @Autowired
-    private ItemRepository itemRepository;
-
-    @Autowired
-    private CartItemRepository cartItemRepository;
-
-    @Autowired
     private OrderService orderService;
-
-    @Autowired
-    private CartService cartService;
-
-    private List<Item> savedItems;
 
     @BeforeEach
     void setUp() {
         orderItemRepository.deleteAll().block();
         orderRepository.deleteAll().block();
-        itemRepository.deleteAll().block();
-        cartItemRepository.deleteAll().block();
+    }
 
-        Item item1 = Item.builder()
-                .title("Мяч футбольный")
-                .description("Профессиональный футбольный мяч")
-                .imgPath("/images/ball.jpg")
-                .price(2500L)
-                .build();
+    private static CartSnapshot snapshotOf(ItemDto... items) {
+        long total = 0;
+        for (ItemDto item : items) {
+            total += item.price() * item.count();
+        }
+        return new CartSnapshot(List.of(items), total);
+    }
 
-        Item item2 = Item.builder()
-                .title("Теннисная ракетка")
-                .description("Облегченная теннисная ракетка")
-                .imgPath("/images/racket.jpg")
-                .price(4500L)
-                .build();
-
-        savedItems = itemRepository.saveAll(List.of(item1, item2))
-                .collectList()
-                .block();
+    private static ItemDto item(Long id, String title, Long price, int count) {
+        return ItemDto.builder().id(id).title(title).price(price).count(count).build();
     }
 
     @Test
-    void createOrderFromCart_Success() {
-        Long item1Id = savedItems.get(0).getId();
-        Long item2Id = savedItems.get(1).getId();
+    void createPendingOrder_Success() {
+        CartSnapshot snapshot = snapshotOf(
+                item(1L, "Мяч футбольный", 2500L, 2),
+                item(2L, "Теннисная ракетка", 4500L, 1));
 
-        cartService.increaseQuantity(USERNAME, item1Id).block();
-        cartService.increaseQuantity(USERNAME, item1Id).block();
-        cartService.increaseQuantity(USERNAME, item2Id).block();
-
-        OrderDto result = orderService.createOrderFromCart(USERNAME).block();
+        OrderDto result = orderService.createPendingOrder(USERNAME, snapshot).block();
 
         assertNotNull(result);
         assertNotNull(result.id());
         assertEquals(9500L, result.totalSum());
         assertEquals(2, result.items().size());
-
-        assertTrue(cartService.getCartItems(USERNAME).collectList().block().isEmpty());
+        assertEquals(OrderStatus.PENDING, result.status());
 
         Order savedOrder = orderRepository.findById(result.id()).block();
         assertNotNull(savedOrder);
         assertEquals(9500L, savedOrder.getTotalSum());
+        assertEquals(OrderStatus.PENDING, savedOrder.getStatus());
 
         List<OrderItem> savedOrderItems = orderItemRepository.findAllByOrderId(savedOrder.getId())
                 .collectList()
@@ -103,46 +82,41 @@ class OrderServiceImplTest {
     }
 
     @Test
-    void createOrderFromCart_EmptyCart_ShouldThrowException() {
-        StepVerifier.create(orderService.createOrderFromCart(USERNAME))
-                .expectErrorMatches(ex -> ex instanceof IllegalArgumentException
-                        && ex.getMessage().equals("Cannot create empty order"))
-                .verify();
+    void markPaid_ShouldTransitionOrderToPaid() {
+        OrderDto order = orderService.createPendingOrder(USERNAME, snapshotOf(item(1L, "Мяч", 2500L, 1))).block();
 
-        assertEquals(0L, orderRepository.count().block());
+        StepVerifier.create(orderService.markPaid(order.id())).verifyComplete();
+
+        Order updated = orderRepository.findById(order.id()).block();
+        assertNotNull(updated);
+        assertEquals(OrderStatus.PAID, updated.getStatus());
     }
 
     @Test
-    void createOrderFromCart_WithSingleItem_Success() {
-        Long itemId = savedItems.get(0).getId();
+    void markFailed_ShouldTransitionOrderToFailed() {
+        OrderDto order = orderService.createPendingOrder(USERNAME, snapshotOf(item(1L, "Мяч", 2500L, 1))).block();
 
-        cartService.increaseQuantity(USERNAME, itemId).block();
+        StepVerifier.create(orderService.markFailed(order.id())).verifyComplete();
 
-        OrderDto result = orderService.createOrderFromCart(USERNAME).block();
+        Order updated = orderRepository.findById(order.id()).block();
+        assertNotNull(updated);
+        assertEquals(OrderStatus.FAILED, updated.getStatus());
+    }
 
-        assertNotNull(result);
-        assertNotNull(result.id());
-        assertEquals(2500L, result.totalSum());
-        assertEquals(1, result.items().size());
-        assertEquals("Мяч футбольный", result.items().get(0).title());
-        assertEquals(1, result.items().get(0).count());
-        assertEquals(2500L, result.items().get(0).price());
-
-        assertTrue(cartService.getCartItems(USERNAME).collectList().block().isEmpty());
+    @Test
+    void markPaid_WhenOrderDoesNotExist_ShouldThrowException() {
+        StepVerifier.create(orderService.markPaid(999L))
+                .expectErrorMatches(ex -> ex instanceof OrderNotFoundException)
+                .verify();
     }
 
     @Test
     void getOrderById_Success() {
-        Long itemId = savedItems.get(0).getId();
+        OrderDto created = orderService.createPendingOrder(USERNAME, snapshotOf(item(1L, "Мяч футбольный", 2500L, 2))).block();
 
-        cartService.increaseQuantity(USERNAME, itemId).block();
-        cartService.increaseQuantity(USERNAME, itemId).block();
-
-        OrderDto createdOrder = orderService.createOrderFromCart(USERNAME).block();
-
-        StepVerifier.create(orderService.getOrderById(createdOrder.id(), USERNAME))
+        StepVerifier.create(orderService.getOrderById(created.id(), USERNAME))
                 .assertNext(result -> {
-                    assertEquals(createdOrder.id(), result.id());
+                    assertEquals(created.id(), result.id());
                     assertEquals(5000L, result.totalSum());
                     assertEquals(1, result.items().size());
                     assertEquals("Мяч футбольный", result.items().get(0).title());
@@ -162,35 +136,24 @@ class OrderServiceImplTest {
     }
 
     @Test
-    void getAllOrders_ShouldReturnAllOrdersSortedByDateDesc() throws InterruptedException {
-        Long itemId = savedItems.get(0).getId();
+    void getAllOrders_ShouldReturnAllOrdersSortedByDateDesc() {
+        LocalDateTime now = LocalDateTime.now();
 
-        cartService.increaseQuantity(USERNAME, itemId).block();
-        OrderDto order1 = orderService.createOrderFromCart(USERNAME).block();
-
-        Thread.sleep(100);
-
-        cartService.increaseQuantity(USERNAME, itemId).block();
-        cartService.increaseQuantity(USERNAME, itemId).block();
-        OrderDto order2 = orderService.createOrderFromCart(USERNAME).block();
-
-        Thread.sleep(100);
-
-        cartService.increaseQuantity(USERNAME, itemId).block();
-        OrderDto order3 = orderService.createOrderFromCart(USERNAME).block();
+        Order order1 = orderRepository.save(Order.builder()
+                .username(USERNAME).totalSum(2500L).status(OrderStatus.PAID).orderDate(now.minusMinutes(2)).build()).block();
+        Order order2 = orderRepository.save(Order.builder()
+                .username(USERNAME).totalSum(5000L).status(OrderStatus.PAID).orderDate(now.minusMinutes(1)).build()).block();
+        Order order3 = orderRepository.save(Order.builder()
+                .username(USERNAME).totalSum(2500L).status(OrderStatus.PAID).orderDate(now).build()).block();
 
         List<OrderDto> orders = orderService.getAllOrders(USERNAME).collectList().block();
 
         assertNotNull(orders);
         assertEquals(3, orders.size());
 
-        assertEquals(order3.id(), orders.get(0).id());
-        assertEquals(order2.id(), orders.get(1).id());
-        assertEquals(order1.id(), orders.get(2).id());
-
-        assertEquals(2500L, orders.get(0).totalSum());
-        assertEquals(5000L, orders.get(1).totalSum());
-        assertEquals(2500L, orders.get(2).totalSum());
+        assertEquals(order3.getId(), orders.get(0).id());
+        assertEquals(order2.getId(), orders.get(1).id());
+        assertEquals(order1.getId(), orders.get(2).id());
     }
 
     @Test
@@ -200,27 +163,11 @@ class OrderServiceImplTest {
     }
 
     @Test
-    void createOrder_ShouldClearCartAfterCreation() {
-        Long itemId = savedItems.get(0).getId();
-
-        cartService.increaseQuantity(USERNAME, itemId).block();
-        cartService.increaseQuantity(USERNAME, itemId).block();
-        assertFalse(cartService.getCartItems(USERNAME).collectList().block().isEmpty());
-
-        orderService.createOrderFromCart(USERNAME).block();
-
-        assertTrue(cartService.getCartItems(USERNAME).collectList().block().isEmpty());
-    }
-
-    @Test
     void getOrderById_BelongingToAnotherUser_ShouldThrowException() {
         String otherUsername = "buyer2";
-        Long itemId = savedItems.get(0).getId();
+        OrderDto created = orderService.createPendingOrder(USERNAME, snapshotOf(item(1L, "Мяч", 2500L, 1))).block();
 
-        cartService.increaseQuantity(USERNAME, itemId).block();
-        OrderDto createdOrder = orderService.createOrderFromCart(USERNAME).block();
-
-        StepVerifier.create(orderService.getOrderById(createdOrder.id(), otherUsername))
+        StepVerifier.create(orderService.getOrderById(created.id(), otherUsername))
                 .expectErrorMatches(ex -> ex instanceof OrderNotFoundException)
                 .verify();
     }
@@ -228,13 +175,9 @@ class OrderServiceImplTest {
     @Test
     void getAllOrders_ShouldNotIncludeOtherUsersOrders() {
         String otherUsername = "buyer2";
-        Long itemId = savedItems.get(0).getId();
 
-        cartService.increaseQuantity(USERNAME, itemId).block();
-        orderService.createOrderFromCart(USERNAME).block();
-
-        cartService.increaseQuantity(otherUsername, itemId).block();
-        orderService.createOrderFromCart(otherUsername).block();
+        orderService.createPendingOrder(USERNAME, snapshotOf(item(1L, "Мяч", 2500L, 1))).block();
+        orderService.createPendingOrder(otherUsername, snapshotOf(item(1L, "Мяч", 2500L, 1))).block();
 
         List<OrderDto> ownOrders = orderService.getAllOrders(USERNAME).collectList().block();
 

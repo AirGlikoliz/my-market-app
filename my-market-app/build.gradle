@@ -51,6 +51,7 @@ dependencies {
     testRuntimeOnly 'com.h2database:h2'
 
     testImplementation 'com.github.codemonstur:embedded-redis:1.4.3'
+    testImplementation 'org.awaitility:awaitility:4.2.1'
 }
 
 openApiGenerate {

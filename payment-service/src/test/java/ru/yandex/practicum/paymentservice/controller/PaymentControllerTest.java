@@ -12,6 +12,8 @@ import ru.yandex.practicum.paymentservice.model.BalanceResponse;
 import ru.yandex.practicum.paymentservice.model.PaymentRequest;
 import ru.yandex.practicum.paymentservice.model.PaymentResponse;
 
+import java.util.UUID;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -26,22 +28,22 @@ import static org.springframework.security.test.web.reactive.server.SecurityMock
 })
 class PaymentControllerTest {
 
-    private static final String USERNAME = "buyer1";
-
     @Autowired
     private WebTestClient client;
 
     private WebTestClient webTestClient;
+    private String username;
 
     @BeforeEach
     void setUp() {
         webTestClient = client.mutateWith(mockJwt().authorities(new SimpleGrantedAuthority("SCOPE_payment.access")));
+        username = "buyer-" + UUID.randomUUID();
     }
 
     @Test
     void getBalance_WithoutToken_ShouldReturnUnauthorized() {
         client.get()
-                .uri("/api/v1/payments/balance?username={username}", USERNAME)
+                .uri("/api/v1/payments/balance?username={username}", username)
                 .exchange()
                 .expectStatus().isUnauthorized();
     }
@@ -50,15 +52,34 @@ class PaymentControllerTest {
     void makePayment_WithoutToken_ShouldReturnUnauthorized() {
         client.post()
                 .uri("/api/v1/payments")
-                .bodyValue(new PaymentRequest().amount(100L).username(USERNAME))
+                .bodyValue(new PaymentRequest().amount(100L).username(username))
                 .exchange()
                 .expectStatus().isUnauthorized();
     }
 
     @Test
+    void getBalance_WithTokenMissingRequiredScope_ShouldReturnForbidden() {
+        client.mutateWith(mockJwt().authorities(new SimpleGrantedAuthority("SCOPE_some.other.scope")))
+                .get()
+                .uri("/api/v1/payments/balance?username={username}", username)
+                .exchange()
+                .expectStatus().isForbidden();
+    }
+
+    @Test
+    void makePayment_WithTokenMissingRequiredScope_ShouldReturnForbidden() {
+        client.mutateWith(mockJwt().authorities(new SimpleGrantedAuthority("SCOPE_some.other.scope")))
+                .post()
+                .uri("/api/v1/payments")
+                .bodyValue(new PaymentRequest().amount(100L).username(username))
+                .exchange()
+                .expectStatus().isForbidden();
+    }
+
+    @Test
     void getBalance_ShouldReturnCurrentBalance() {
         BalanceResponse response = webTestClient.get()
-                .uri("/api/v1/payments/balance?username={username}", USERNAME)
+                .uri("/api/v1/payments/balance?username={username}", username)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(BalanceResponse.class)
@@ -77,7 +98,7 @@ class PaymentControllerTest {
 
         PaymentResponse response = webTestClient.post()
                 .uri("/api/v1/payments")
-                .bodyValue(new PaymentRequest().amount(amount).username(USERNAME))
+                .bodyValue(new PaymentRequest().amount(amount).username(username))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(PaymentResponse.class)
@@ -97,7 +118,7 @@ class PaymentControllerTest {
 
         PaymentResponse response = webTestClient.post()
                 .uri("/api/v1/payments")
-                .bodyValue(new PaymentRequest().amount(amount).username(USERNAME))
+                .bodyValue(new PaymentRequest().amount(amount).username(username))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(PaymentResponse.class)
@@ -114,19 +135,19 @@ class PaymentControllerTest {
     void makePayment_WithNonPositiveAmount_ShouldReturnBadRequest() {
         webTestClient.post()
                 .uri("/api/v1/payments")
-                .bodyValue(new PaymentRequest().amount(0L).username(USERNAME))
+                .bodyValue(new PaymentRequest().amount(0L).username(username))
                 .exchange()
                 .expectStatus().isBadRequest();
     }
 
     @Test
     void makePayment_ShouldNotAffectOtherUsersBalance() {
-        String otherUsername = "buyer2";
+        String otherUsername = "buyer-" + UUID.randomUUID();
         long otherBalanceBefore = balanceOf(otherUsername);
 
         webTestClient.post()
                 .uri("/api/v1/payments")
-                .bodyValue(new PaymentRequest().amount(1000L).username(USERNAME))
+                .bodyValue(new PaymentRequest().amount(1000L).username(username))
                 .exchange()
                 .expectStatus().isOk();
 
@@ -134,7 +155,7 @@ class PaymentControllerTest {
     }
 
     private long currentBalance() {
-        return balanceOf(USERNAME);
+        return balanceOf(username);
     }
 
     private long balanceOf(String username) {

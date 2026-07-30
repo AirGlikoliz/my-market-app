@@ -2,6 +2,7 @@ package ru.yandex.practicum.mymarket.service;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import ru.yandex.practicum.mymarket.dto.CartAction;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
 
 import java.util.Map;
@@ -22,5 +23,5 @@ public interface CartService {
 
     Mono<Long> getTotalPrice(String username);
 
-    Mono<Void> applyAction(String username, Long itemId, String action);
+    Mono<Void> applyAction(String username, Long itemId, CartAction action);
 }

@@ -1,5 +1,6 @@
 package ru.yandex.practicum.mymarket.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -58,22 +59,10 @@ public class CartController {
     }
 
     @PostMapping("/cart/items")
-    public Mono<String> updateCartItems(@ModelAttribute CartActionRequest request, Authentication authentication) {
+    public Mono<String> updateCartItems(@Valid @ModelAttribute CartActionRequest request, Authentication authentication) {
         log.info("POST /cart/items - id: {}, action: {}", request.id(), request.action());
 
-        String username = authentication.getName();
-        String actionValid = request.action() != null ? request.action().toUpperCase() : "";
-
-        Mono<Void> action = switch (actionValid) {
-            case "PLUS" -> cartService.increaseQuantity(username, request.id());
-            case "MINUS" -> cartService.decreaseQuantity(username, request.id());
-            case "DELETE" -> cartService.removeFromCart(username, request.id());
-            default -> {
-                log.warn("Unknown action: {}", request.action());
-                yield Mono.<Void>empty();
-            }
-        };
-
-        return action.thenReturn("redirect:/cart/items");
+        return cartService.applyAction(authentication.getName(), request.id(), request.action())
+                .thenReturn("redirect:/cart/items");
     }
 }
