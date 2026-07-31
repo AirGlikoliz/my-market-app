@@ -1,4 +1,4 @@
-package ru.yandex.practicum.mymarket.service.checkout;
+package ru.yandex.practicum.mymarket.checkout;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -8,15 +8,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
-import ru.yandex.practicum.mymarket.dto.CartSnapshot;
-import ru.yandex.practicum.mymarket.dto.ItemDto;
-import ru.yandex.practicum.mymarket.dto.OrderDto;
-import ru.yandex.practicum.mymarket.dto.PaymentResult;
+import ru.yandex.practicum.mymarket.dto.*;
 import ru.yandex.practicum.mymarket.dto.OrderStatus;
 import ru.yandex.practicum.mymarket.service.CartService;
 import ru.yandex.practicum.mymarket.service.OrderService;
 import ru.yandex.practicum.mymarket.service.PaymentService;
-import ru.yandex.practicum.mymarket.dto.CheckoutResult;
+import ru.yandex.practicum.mymarket.service.checkout.CheckoutServiceImpl;
 
 import java.util.List;
 
@@ -99,6 +96,49 @@ class CheckoutServiceImplTest {
         verify(orderService).markFailed(1L);
         verify(orderService, never()).markPaid(any());
         verify(cartService, never()).clearCart(any());
+    }
+
+    @Test
+    void checkout_WhenMarkPaidFailsAfterSuccessfulPayment_ShouldStillReturnSuccessAndAttemptCartClear() {
+        List<ItemDto> cartItems = List.of(item(1L, "Мяч", 2500L, 2));
+        when(cartService.getCartItems(USERNAME)).thenReturn(Flux.fromIterable(cartItems));
+        when(orderService.createPendingOrder(eq(USERNAME), any())).thenReturn(Mono.just(pendingOrder(1L, 5000L)));
+        when(paymentService.pay(USERNAME, 5000L)).thenReturn(Mono.just(new PaymentResult(true, "Payment successful")));
+        when(orderService.markPaid(1L)).thenReturn(Mono.error(new RuntimeException("db unavailable")));
+        when(cartService.clearCart(USERNAME)).thenReturn(Mono.empty());
+
+        StepVerifier.create(checkoutService.checkout(USERNAME))
+                .assertNext(result -> assertEquals(CheckoutResult.success(1L), result))
+                .verifyComplete();
+
+        verify(cartService).clearCart(USERNAME);
+    }
+
+    @Test
+    void checkout_WhenClearCartFailsAfterSuccessfulPayment_ShouldStillReturnSuccess() {
+        List<ItemDto> cartItems = List.of(item(1L, "Мяч", 2500L, 2));
+        when(cartService.getCartItems(USERNAME)).thenReturn(Flux.fromIterable(cartItems));
+        when(orderService.createPendingOrder(eq(USERNAME), any())).thenReturn(Mono.just(pendingOrder(1L, 5000L)));
+        when(paymentService.pay(USERNAME, 5000L)).thenReturn(Mono.just(new PaymentResult(true, "Payment successful")));
+        when(orderService.markPaid(1L)).thenReturn(Mono.empty());
+        when(cartService.clearCart(USERNAME)).thenReturn(Mono.error(new RuntimeException("db unavailable")));
+
+        StepVerifier.create(checkoutService.checkout(USERNAME))
+                .assertNext(result -> assertEquals(CheckoutResult.success(1L), result))
+                .verifyComplete();
+    }
+
+    @Test
+    void checkout_WhenMarkFailedFailsAfterDeclinedPayment_ShouldStillReturnPaymentDeclined() {
+        List<ItemDto> cartItems = List.of(item(1L, "Мяч", 2500L, 2));
+        when(cartService.getCartItems(USERNAME)).thenReturn(Flux.fromIterable(cartItems));
+        when(orderService.createPendingOrder(eq(USERNAME), any())).thenReturn(Mono.just(pendingOrder(1L, 5000L)));
+        when(paymentService.pay(USERNAME, 5000L)).thenReturn(Mono.just(new PaymentResult(false, "Insufficient funds")));
+        when(orderService.markFailed(1L)).thenReturn(Mono.error(new RuntimeException("db unavailable")));
+
+        StepVerifier.create(checkoutService.checkout(USERNAME))
+                .assertNext(result -> assertEquals(CheckoutResult.paymentDeclined(), result))
+                .verifyComplete();
     }
 
     @Test

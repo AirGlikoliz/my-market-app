@@ -9,10 +9,11 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.dto.CheckoutResult;
-import ru.yandex.practicum.mymarket.service.checkout.CheckoutService;
 import ru.yandex.practicum.mymarket.dto.OrderDto;
 import ru.yandex.practicum.mymarket.dto.OrderItemDto;
+import ru.yandex.practicum.mymarket.dto.OrderStatus;
 import ru.yandex.practicum.mymarket.service.OrderService;
+import ru.yandex.practicum.mymarket.service.checkout.CheckoutService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -47,11 +48,8 @@ class OrderControllerTest {
     @Test
     void getOrders_ShouldReturnOrdersPage() {
         List<OrderDto> orders = List.of(
-                order(1L, 5000L, LocalDateTime.now().minusDays(1),
-                        List.of(orderItem(1L, "Мяч", 2500L, 2))),
-                order(2L, 9500L, LocalDateTime.now(),
-                        List.of(orderItem(1L, "Мяч", 2500L, 2),
-                                orderItem(2L, "Ракетка", 4500L, 1)))
+                orderSummary(1L, 5000L, LocalDateTime.now().minusDays(1), OrderStatus.PAID),
+                orderSummary(2L, 9500L, LocalDateTime.now(), OrderStatus.PENDING)
         );
 
         when(orderService.getAllOrders(anyString())).thenReturn(Flux.fromIterable(orders));
@@ -68,6 +66,8 @@ class OrderControllerTest {
                     assertTrue(body.contains("Заказ №2"));
                     assertTrue(body.contains("5000"));
                     assertTrue(body.contains("9500"));
+                    assertTrue(body.contains("PAID"));
+                    assertTrue(body.contains("PENDING"));
                 });
 
         verify(orderService, times(1)).getAllOrders(anyString());
@@ -184,5 +184,9 @@ class OrderControllerTest {
 
     private static OrderDto order(Long id, Long totalSum, LocalDateTime date, List<OrderItemDto> items) {
         return OrderDto.builder().id(id).orderDate(date).totalSum(totalSum).items(items).build();
+    }
+
+    private static OrderDto orderSummary(Long id, Long totalSum, LocalDateTime date, OrderStatus status) {
+        return OrderDto.builder().id(id).orderDate(date).totalSum(totalSum).status(status).build();
     }
 }

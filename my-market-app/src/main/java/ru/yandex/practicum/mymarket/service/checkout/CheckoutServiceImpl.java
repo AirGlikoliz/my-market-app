@@ -31,20 +31,32 @@ public class CheckoutServiceImpl implements CheckoutService {
                         return Mono.just(CheckoutResult.emptyCart());
                     }
                     return orderService.createPendingOrder(username, snapshot)
-                            .flatMap(order -> applyPayment(username, order));
+                            .flatMap(order -> settlePayment(username, order));
                 });
     }
 
-    private Mono<CheckoutResult> applyPayment(String username, OrderDto order) {
+    private Mono<CheckoutResult> settlePayment(String username, OrderDto order) {
         return paymentService.pay(username, order.totalSum())
             .flatMap(paymentResult -> {
                 if (!paymentResult.success()) {
                     log.warn("Payment declined for order {}: {}", order.id(), paymentResult.message());
                     return orderService.markFailed(order.id())
+                        .onErrorResume(ex -> {
+                            log.error("Order {} was declined but could not be marked FAILED, user {}", order.id(), username, ex);
+                            return Mono.empty();
+                        })
                         .thenReturn(CheckoutResult.paymentDeclined());
                 }
                 return orderService.markPaid(order.id())
-                    .then(cartService.clearCart(username))
+                    .onErrorResume(ex -> {
+                        log.error("Payment succeeded for order {} (user {}) but marking it PAID failed - needs manual reconciliation", order.id(), username, ex);
+                        return Mono.empty();
+                    })
+                    .then(cartService.clearCart(username)
+                        .onErrorResume(ex -> {
+                            log.error("Payment succeeded for order {} (user {}) but clearing the cart failed", order.id(), username, ex);
+                            return Mono.empty();
+                        }))
                     .thenReturn(CheckoutResult.success(order.id()));
             });
     }

@@ -32,8 +32,9 @@
                     <div class="card-header">
                         <a th:text="${'Заказ №'+order.id()}" th:href="${'/orders/'+order.id()}"></a>
                     </div>
-                    <ul class="list-group list-group-flush" th:each="item : ${order.items()}">
-                        <li class="list-group-item" th:text="${item.title()+' ('+item.count()+' шт.) '+(item.price()*item.count())+' руб.'}"/>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item" th:text="${#temporals.format(order.orderDate(), 'dd.MM.yyyy HH:mm')}"/>
+                        <li class="list-group-item" th:text="${order.status()}"/>
                     </ul>
                     <div class="card-footer">
                         <b th:text="${'Сумма: '+order.totalSum()}+' руб.'"></b>
