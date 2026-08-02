@@ -10,16 +10,16 @@ import java.time.LocalDateTime;
 
 public interface CartItemRepository extends ReactiveCrudRepository<CartItem, Long> {
 
-    Flux<CartItem> findBySessionId(String sessionId);
+    Flux<CartItem> findByUsername(String username);
 
-    Mono<CartItem> findBySessionIdAndItemId(String sessionId, Long itemId);
+    Mono<CartItem> findByUsernameAndItemId(String username, Long itemId);
 
-    Mono<Void> deleteBySessionId(String sessionId);
+    Mono<Void> deleteByUsername(String username);
 
-    Mono<Void> deleteBySessionIdAndItemId(String sessionId, Long itemId);
+    Mono<Void> deleteByUsernameAndItemId(String username, Long itemId);
 
     @Query("DELETE FROM cart_items " +
-            "WHERE session_id IN ( SELECT session_id " +
-            "FROM cart_items GROUP BY session_id HAVING MAX(updated_at) < :deadline)")
+            "WHERE username IN ( SELECT username " +
+            "FROM cart_items GROUP BY username HAVING MAX(updated_at) < :deadline)")
     Mono<Void> deleteAllOlderThan(LocalDateTime deadline);
 }

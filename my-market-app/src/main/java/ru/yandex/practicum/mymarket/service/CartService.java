@@ -2,25 +2,26 @@ package ru.yandex.practicum.mymarket.service;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import ru.yandex.practicum.mymarket.dto.CartAction;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
 
 import java.util.Map;
 
 public interface CartService {
 
-    Mono<Void> removeFromCart(String sessionId, Long itemId);
+    Mono<Void> removeFromCart(String username, Long itemId);
 
-    Mono<Void> increaseQuantity(String sessionId, Long itemId);
+    Mono<Void> increaseQuantity(String username, Long itemId);
 
-    Mono<Void> decreaseQuantity(String sessionId, Long itemId);
+    Mono<Void> decreaseQuantity(String username, Long itemId);
 
-    Mono<Void> clearCart(String sessionId);
+    Mono<Void> clearCart(String username);
 
-    Mono<Map<Long, Integer>> getCart(String sessionId);
+    Mono<Map<Long, Integer>> getCart(String username);
 
-    Flux<ItemDto> getCartItems(String sessionId);
+    Flux<ItemDto> getCartItems(String username);
 
-    Mono<Long> getTotalPrice(String sessionId);
+    Mono<Long> getTotalPrice(String username);
 
-    Mono<Void> applyAction(String sessionId, Long itemId, String action);
+    Mono<Void> applyAction(String username, Long itemId, CartAction action);
 }

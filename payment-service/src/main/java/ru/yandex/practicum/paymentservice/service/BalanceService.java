@@ -4,7 +4,7 @@ import reactor.core.publisher.Mono;
 
 public interface BalanceService {
 
-    Mono<Long> getBalance();
+    Mono<Long> getBalance(String username);
 
-    Mono<PaymentResponse> pay(long amount);
+    Mono<PaymentResponse> pay(String username, long amount);
 }

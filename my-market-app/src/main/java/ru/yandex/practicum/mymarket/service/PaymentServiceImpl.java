@@ -19,8 +19,8 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentsApi paymentsApi;
 
     @Override
-    public Mono<PaymentStatus> checkBalance(Long requiredAmount) {
-        return paymentsApi.getBalance()
+    public Mono<PaymentStatus> checkBalance(String username, Long requiredAmount) {
+        return paymentsApi.getBalance(username)
                 .map(response -> PaymentStatus.builder()
                         .available(true)
                         .sufficientFunds(response.getBalance() >= requiredAmount)
@@ -37,8 +37,8 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    public Mono<PaymentResult> pay(Long amount) {
-        return paymentsApi.makePayment(new PaymentRequest().amount(amount))
+    public Mono<PaymentResult> pay(String username, Long amount) {
+        return paymentsApi.makePayment(new PaymentRequest().amount(amount).username(username))
                 .map(response -> new PaymentResult(
                         Boolean.TRUE.equals(response.getSuccess()),
                         response.getMessage()))

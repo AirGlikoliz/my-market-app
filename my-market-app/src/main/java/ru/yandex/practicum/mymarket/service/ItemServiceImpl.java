@@ -12,6 +12,7 @@ import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.dto.CachedItemPage;
 import ru.yandex.practicum.mymarket.cache.ItemCacheRepository;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
+import ru.yandex.practicum.mymarket.dto.SortOption;
 import ru.yandex.practicum.mymarket.entity.Item;
 import ru.yandex.practicum.mymarket.exception.ItemNotFoundException;
 import ru.yandex.practicum.mymarket.repository.ItemRepository;
@@ -29,7 +30,7 @@ public class ItemServiceImpl implements ItemService {
     private final ItemCacheRepository itemCacheRepository;
 
     @Override
-    public Mono<Page<ItemDto>> getItems(String search, String sort, int pageNumber, int pageSize) {
+    public Mono<Page<ItemDto>> getItems(String search, SortOption sort, int pageNumber, int pageSize) {
 
         log.info("Fetching items - search: {}, sort: {}, page: {}, size: {}", search, sort, pageNumber, pageSize);
 
@@ -99,13 +100,13 @@ public class ItemServiceImpl implements ItemService {
         return (search == null || search.isBlank()) ? "" : search;
     }
 
-    private String mapSort(String sort) {
+    private String mapSort(SortOption sort) {
         if (sort == null) return "NONE";
 
-        return switch (sort.toUpperCase()) {
-            case "ALPHA" -> "TITLE_ASC";
-            case "PRICE" -> "PRICE_ASC";
-            default -> "NONE";
+        return switch (sort) {
+            case ALPHA -> "TITLE_ASC";
+            case PRICE -> "PRICE_ASC";
+            case NO -> "NONE";
         };
     }
 }

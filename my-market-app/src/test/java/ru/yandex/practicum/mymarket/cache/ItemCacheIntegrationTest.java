@@ -15,6 +15,7 @@ import reactor.test.StepVerifier;
 import ru.yandex.practicum.mymarket.config.RedisConfig;
 import ru.yandex.practicum.mymarket.dto.CachedItemPage;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
+import ru.yandex.practicum.mymarket.dto.SortOption;
 import ru.yandex.practicum.mymarket.entity.Item;
 import ru.yandex.practicum.mymarket.exception.ItemNotFoundException;
 import ru.yandex.practicum.mymarket.repository.ItemRepository;
@@ -24,6 +25,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 
+import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -83,20 +85,19 @@ class ItemCacheIntegrationTest {
     }
 
     @Test
-    void getItemById_ShouldFallBackToDb_AfterCacheEntryExpires() throws InterruptedException {
+    void getItemById_ShouldFallBackToDb_AfterCacheEntryExpires() {
         itemService.getItemById(savedItem.getId()).block();
         itemRepository.deleteById(savedItem.getId()).block();
 
-        Thread.sleep(Duration.ofSeconds(3).toMillis());
-
-        StepVerifier.create(itemService.getItemById(savedItem.getId()))
+        await().atMost(Duration.ofSeconds(5))
+            .untilAsserted(() -> StepVerifier.create(itemService.getItemById(savedItem.getId()))
                 .expectErrorMatches(ex -> ex instanceof ItemNotFoundException)
-                .verify();
+                .verify());
     }
 
     @Test
     void getItems_ShouldPopulateRedisCacheOnFirstCall() {
-        StepVerifier.create(itemService.getItems(null, "NO", 1, 10))
+        StepVerifier.create(itemService.getItems(null, SortOption.NO, 1, 10))
                 .expectNextCount(1)
                 .verifyComplete();
 
@@ -108,11 +109,11 @@ class ItemCacheIntegrationTest {
 
     @Test
     void getItems_ShouldBeServedFromCache_AfterItemsRemovedFromDb() {
-        itemService.getItems(null, "NO", 1, 10).block();
+        itemService.getItems(null, SortOption.NO, 1, 10).block();
 
         itemRepository.deleteAll().block();
 
-        StepVerifier.create(itemService.getItems(null, "NO", 1, 10))
+        StepVerifier.create(itemService.getItems(null, SortOption.NO, 1, 10))
                 .assertNext((Page<ItemDto> page) -> assertEquals(1, page.getContent().size()))
                 .verifyComplete();
     }

@@ -20,7 +20,7 @@ public class CartItem {
     @Id
     private Long id;
 
-    private String sessionId;
+    private String username;
 
     private Long itemId;
 

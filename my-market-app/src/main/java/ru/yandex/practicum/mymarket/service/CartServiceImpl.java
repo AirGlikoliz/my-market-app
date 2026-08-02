@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import ru.yandex.practicum.mymarket.dto.CartAction;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
 import ru.yandex.practicum.mymarket.entity.CartItem;
 import ru.yandex.practicum.mymarket.repository.CartItemRepository;
@@ -21,33 +22,34 @@ public class CartServiceImpl implements CartService {
     private final CartItemRepository cartItemRepository;
 
     @Override
-    public Mono<Void> removeFromCart(String sessionId, Long itemId) {
-        log.info("Removing item {} from cart, session {}", itemId, sessionId);
-        return cartItemRepository.deleteBySessionIdAndItemId(sessionId, itemId);
+    public Mono<Void> removeFromCart(String username, Long itemId) {
+        log.info("Removing item {} from cart, user {}", itemId, username);
+        return cartItemRepository.deleteByUsernameAndItemId(username, itemId);
     }
 
     @Override
-    public Mono<Void> increaseQuantity(String sessionId, Long itemId) {
-        log.info("Increasing quantity of item {}, session {}", itemId, sessionId);
-        return cartItemRepository.findBySessionIdAndItemId(sessionId, itemId)
+    public Mono<Void> increaseQuantity(String username, Long itemId) {
+        log.info("Increasing quantity of item {}, user {}", itemId, username);
+        return cartItemRepository.findByUsernameAndItemId(username, itemId)
             .flatMap(existing -> {
                 existing.setQuantity(existing.getQuantity() + 1);
                 return cartItemRepository.save(existing);
             })
-            .switchIfEmpty(Mono.defer(() -> cartItemRepository.save(
-                CartItem.builder()
-                    .sessionId(sessionId)
-                    .itemId(itemId)
-                    .quantity(1)
-                    .build()
-            )))
+            .switchIfEmpty(Mono.defer(() -> itemService.getItemEntityById(itemId)
+                .flatMap(item -> cartItemRepository.save(
+                    CartItem.builder()
+                        .username(username)
+                        .itemId(itemId)
+                        .quantity(1)
+                        .build()
+                ))))
             .then();
     }
 
     @Override
-    public Mono<Void> decreaseQuantity(String sessionId, Long itemId) {
-        log.info("Decreasing quantity of item {}, session {}", itemId, sessionId);
-        return cartItemRepository.findBySessionIdAndItemId(sessionId, itemId)
+    public Mono<Void> decreaseQuantity(String username, Long itemId) {
+        log.info("Decreasing quantity of item {}, user {}", itemId, username);
+        return cartItemRepository.findByUsernameAndItemId(username, itemId)
             .flatMap(existing -> {
                 if (existing.getQuantity() <= 1) {
                     return cartItemRepository.delete(existing);
@@ -58,20 +60,20 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
-    public Mono<Void> clearCart(String sessionId) {
-        log.info("Clearing cart, session {}", sessionId);
-        return cartItemRepository.deleteBySessionId(sessionId);
+    public Mono<Void> clearCart(String username) {
+        log.info("Clearing cart, user {}", username);
+        return cartItemRepository.deleteByUsername(username);
     }
 
     @Override
-    public Mono<Map<Long, Integer>> getCart(String sessionId) {
-        return cartItemRepository.findBySessionId(sessionId)
+    public Mono<Map<Long, Integer>> getCart(String username) {
+        return cartItemRepository.findByUsername(username)
                 .collect(Collectors.toMap(CartItem::getItemId, CartItem::getQuantity));
     }
 
     @Override
-    public Flux<ItemDto> getCartItems(String sessionId) {
-        return cartItemRepository.findBySessionId(sessionId)
+    public Flux<ItemDto> getCartItems(String username) {
+        return cartItemRepository.findByUsername(username)
             .collectMap(CartItem::getItemId, CartItem::getQuantity)
             .flatMapMany(cart -> {
                 if (cart.isEmpty()) return Flux.empty();
@@ -88,25 +90,23 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
-    public Mono<Long> getTotalPrice(String sessionId) {
-        return getCartItems(sessionId)
+    public Mono<Long> getTotalPrice(String username) {
+        return getCartItems(username)
                 .map(item -> item.price() * item.count())
                 .reduce(0L, Long::sum)
                 .defaultIfEmpty(0L);
     }
 
     @Override
-    public Mono<Void> applyAction(String sessionId, Long itemId, String action) {
-        String normalizedAction = action != null ? action.toUpperCase() : "";
-
-        return switch (normalizedAction) {
-            case "PLUS" -> increaseQuantity(sessionId, itemId);
-            case "MINUS" -> decreaseQuantity(sessionId, itemId);
-            case "DELETE" -> removeFromCart(sessionId, itemId);
-            default -> {
-                log.warn("Unknown action: {}", action);
-                yield Mono.empty();
-            }
+    public Mono<Void> applyAction(String username, Long itemId, CartAction action) {
+        if (action == null) {
+            log.warn("No action given for item {}, user {}", itemId, username);
+            return Mono.empty();
+        }
+        return switch (action) {
+            case PLUS -> increaseQuantity(username, itemId);
+            case MINUS -> decreaseQuantity(username, itemId);
+            case DELETE -> removeFromCart(username, itemId);
         };
     }
 }

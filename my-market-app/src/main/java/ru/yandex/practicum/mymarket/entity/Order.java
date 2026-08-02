@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
+import ru.yandex.practicum.mymarket.dto.OrderStatus;
 
 import java.time.LocalDateTime;
 
@@ -19,7 +20,11 @@ public class Order {
     @Id
     private Long id;
 
+    private String username;
+
     private LocalDateTime orderDate;
 
     private Long totalSum;
+
+    private OrderStatus status;
 }

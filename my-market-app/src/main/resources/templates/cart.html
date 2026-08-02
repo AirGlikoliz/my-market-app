@@ -18,6 +18,11 @@
                     </h2>
                     <a href="/orders" class="btn btn-secondary ms-auto bi bi-file-earmark-text"> Заказы</a>
                     <a href="/items" class="btn btn-secondary bi bi-arrow-left-square"> Главная</a>
+                    <span class="align-self-center" th:text="${username}"></span>
+                    <form th:action="@{/logout}" method="post">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                        <button type="submit" class="btn btn-outline-secondary bi bi-box-arrow-right"> Выйти</button>
+                    </form>
                 </div>
             </div>
         </div>
@@ -32,6 +37,7 @@
                         </h5>
                         <p class="card-text" th:text="${item.description()}"></p>
                         <form th:action="@{/cart/items}" method="post">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
                             <div class="hstack gap-3">
                                 <input type="hidden" name="id" th:value="${item.id()}">
                                 <button type="submit" class="btn btn-outline-secondary" name="action" value="MINUS">-</button>
@@ -49,6 +55,7 @@
                 <div class="hstack gap-3">
                     <h2 th:text="'Итого: '+${total}+' руб.'"/>
                     <form action="/buy" method="post" class="ms-auto" th:if="${checkoutAvailable}">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
                         <button class="btn btn-warning">Купить</button>
                     </form>
                     <div class="alert alert-warning mb-0 ms-auto" th:unless="${checkoutAvailable}" th:text="${paymentMessage}"></div>
